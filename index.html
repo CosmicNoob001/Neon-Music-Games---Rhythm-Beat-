@@ -317,7 +317,7 @@
                 The ultimate rhythm game! Press buttons to the beat, rack up combos, and break your own records. 
                 Features stunning neon effects and an electrifying soundtrack that'll keep you hooked!
             </p>
-            <button class="play-button" onclick="loadGame('https://raw.githubusercontent.com/CosmicNoob001/Neon-Music-Games---Rhythm-Beat-/refs/heads/main/Neon-Flux.html')">
+            <button class="play-button" onclick="loadGame()">
                 ▶ PLAY NOW
             </button>
         </div>
@@ -340,7 +340,7 @@
             <p class="game-description">
                 Your game description goes here. Make it exciting and tell players what makes your game special!
             </p>
-            <button class="play-button" onclick="loadGame('https://raw.githubusercontent.com/USERNAME/REPO/main/your-game.html')">
+            <button class="play-button" onclick="loadGame()">
                 ▶ PLAY NOW
             </button>
         </div>
@@ -395,25 +395,14 @@
         }, { once: true });
 
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
-        function loadGame(githubRawUrl) {
-            // แสดงข้อความกำลังโหลด / Show loading message
-            document.body.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 2em; color: #ff00ff; flex-direction: column;"><div style="font-size: 3em; margin-bottom: 20px;">🎮</div><div>Loading Game...</div></div>';
-            
-            // ดึงไฟล์จาก GitHub / Fetch file from GitHub
-            fetch(githubRawUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error('Failed to load game');
-                    return response.text();
-                })
-                .then(html => {
-                    // แทนที่เนื้อหาทั้งหน้า / Replace entire page content
-                    document.open();
-                    document.write(`
-    <base href="${base}">
-    ${html}
-  `);
-                    document.close();
-                })
+        function loadGame() {
+  document.getElementById("game").innerHTML = `
+    <iframe
+      src="https://raw.githubusercontent.com/CosmicNoob001/Neon-Music-Games---Rhythm-Beat-/refs/heads/main/Neon-Flux.html"
+      allow="autoplay; fullscreen"
+    ></iframe>
+  `;
+}
                 .catch(error => {
                     document.body.innerHTML = `
                         <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-size: 1.5em; color: #ff00ff; text-align: center; padding: 20px; background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%);">
