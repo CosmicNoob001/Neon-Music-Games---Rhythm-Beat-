@@ -317,7 +317,7 @@
                 The ultimate rhythm game! Press buttons to the beat, rack up combos, and break your own records. 
                 Features stunning neon effects and an electrifying soundtrack that'll keep you hooked!
             </p>
-            <button class="play-button" onclick="loadGame('Neon-Flux.html')">
+            <button class="play-button" onclick="loadGame('https://raw.githubusercontent.com/CosmicNoob001/Neon-Music-Games---Rhythm-Beat-/refs/heads/main/Neon-Flux.html')">
                 ▶ PLAY NOW
             </button>
         </div>
@@ -408,7 +408,10 @@
                 .then(html => {
                     // แทนที่เนื้อหาทั้งหน้า / Replace entire page content
                     document.open();
-                    document.write(html);
+                    document.write(`
+    <base href="${base}">
+    ${html}
+  `);
                     document.close();
                 })
                 .catch(error => {
