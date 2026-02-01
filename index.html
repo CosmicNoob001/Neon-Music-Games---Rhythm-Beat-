@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Music Games - Rhythm & Beat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .neon-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.3;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        .circle1 {
+            width: 300px;
+            height: 300px;
+            background: #ff00ff;
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .circle2 {
+            width: 400px;
+            height: 400px;
+            background: #00ffff;
+            top: 50%;
+            right: 10%;
+            animation-delay: 3s;
+        }
+
+        .circle3 {
+            width: 250px;
+            height: 250px;
+            background: #ff00aa;
+            bottom: 10%;
+            left: 30%;
+            animation-delay: 6s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+            33% {
+                transform: translate(50px, -50px) scale(1.1);
+            }
+            66% {
+                transform: translate(-30px, 30px) scale(0.9);
+            }
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ff00ff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient-shift 3s linear infinite;
+            text-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Games Container */
+        .games-container {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 40px;
+        }
+
+        /* Game Card */
+        .game-card {
+            background: rgba(20, 20, 40, 0.7);
+            border: 2px solid rgba(255, 0, 255, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(0, 255, 255, 0.6);
+            box-shadow: 0 20px 60px rgba(255, 0, 255, 0.4);
+        }
+
+        .game-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 0, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        /* Game Preview */
+        .game-preview {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #ff00ff 0%, #00ffff 100%);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4em;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .preview-icon {
+            animation: pulse 2s infinite;
+            filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5));
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Game Info */
+        .game-title {
+            font-size: 2em;
+            color: #ff00ff;
+            text-shadow: 0 0 15px rgba(255, 0, 255, 0.7);
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .game-description {
+            color: #aaa;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            font-size: 1em;
+        }
+
+        /* Play Button */
+        .play-button {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 1.3em;
+            font-weight: bold;
+            background: linear-gradient(90deg, #ff00ff, #00ffff);
+            border: none;
+            border-radius: 50px;
+            color: #fff;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .play-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .play-button:hover::before {
+            left: 100%;
+        }
+
+        .play-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(255, 0, 255, 0.6);
+        }
+
+        .play-button:active {
+            transform: scale(0.95);
+        }
+
+        /* Music Control */
+        .music-control {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+        }
+
+        .music-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff00ff, #00ffff);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(255, 0, 255, 0.4);
+        }
+
+        .music-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            box-shadow: 0 10px 30px rgba(0, 255, 255, 0.6);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            margin-top: 80px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+
+            .games-container {
+                grid-template-columns: 1fr;
+            }
+
+            .game-preview {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation">
+        <div class="neon-circle circle1"></div>
+        <div class="neon-circle circle2"></div>
+        <div class="neon-circle circle3"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <h1>🎵 NEON MUSIC GAMES 🎵</h1>
+        <p class="subtitle">Music • Rhythm • Fun</p>
+    </header>
+
+    <!-- Games Container -->
+    <div class="games-container">
+        
+        <!-- Game Card 1 - เพิ่มเกมใหม่ได้ที่นี่ / Add new games here -->
+        <div class="game-card">
+            <div class="game-preview">
+                <div class="preview-icon">🎹</div>
+            </div>
+            <h2 class="game-title">Rhythm Master</h2>
+            <p class="game-description">
+                The ultimate rhythm game! Press buttons to the beat, rack up combos, and break your own records. 
+                Features stunning neon effects and an electrifying soundtrack that'll keep you hooked!
+            </p>
+            <button class="play-button" onclick="loadGame('Neon-Flux.html')">
+                ▶ PLAY NOW
+            </button>
+        </div>
+
+        <!-- วิธีเพิ่มเกมใหม่ / How to add a new game:
+        
+        1. คัดลอกโค้ดด้านล่างนี้ / Copy the code below
+        2. วางใต้เกมสุดท้าย / Paste it below the last game
+        3. แก้ไข / Edit:
+           - Icon emoji (🎸, 🎤, 🎧, 🎼, 🎺, 🥁, etc.)
+           - Game title
+           - Game description
+           - GitHub raw URL
+        
+        <div class="game-card">
+            <div class="game-preview">
+                <div class="preview-icon">🎸</div>
+            </div>
+            <h2 class="game-title">Your Game Title</h2>
+            <p class="game-description">
+                Your game description goes here. Make it exciting and tell players what makes your game special!
+            </p>
+            <button class="play-button" onclick="loadGame('https://raw.githubusercontent.com/USERNAME/REPO/main/your-game.html')">
+                ▶ PLAY NOW
+            </button>
+        </div>
+        -->
+
+    </div>
+
+    <!-- Music Control -->
+    <div class="music-control">
+        <button class="music-toggle" id="musicToggle" onclick="toggleMusic()">
+            🔊
+        </button>
+    </div>
+
+    <!-- Background Music -->
+    <audio id="bgMusic" loop>
+        <!-- ใส่ URL เพลงของคุณที่นี่ / Put your music URL here -->
+        <source src="https://www.bensound.com/bensound-music/bensound-retrosoul.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2026 Neon Music Games | Made by @Nothing/404</p>
+    </footer>
+
+    <script>
+        // Music Control
+        const bgMusic = document.getElementById('bgMusic');
+        const musicToggle = document.getElementById('musicToggle');
+        let isPlaying = false;
+
+        function toggleMusic() {
+            if (isPlaying) {
+                bgMusic.pause();
+                musicToggle.textContent = '🔇';
+                isPlaying = false;
+            } else {
+                bgMusic.play();
+                musicToggle.textContent = '🔊';
+                isPlaying = true;
+            }
+        }
+
+        // Auto play music on first interaction
+        document.addEventListener('click', function initAudio() {
+            if (!isPlaying) {
+                bgMusic.play().catch(err => console.log('Music autoplay blocked:', err));
+                isPlaying = true;
+                musicToggle.textContent = '🔊';
+            }
+            document.removeEventListener('click', initAudio);
+        }, { once: true });
+
+        // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
+        function loadGame(githubRawUrl) {
+            // แสดงข้อความกำลังโหลด / Show loading message
+            document.body.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 2em; color: #ff00ff; flex-direction: column;"><div style="font-size: 3em; margin-bottom: 20px;">🎮</div><div>Loading Game...</div></div>';
+            
+            // ดึงไฟล์จาก GitHub / Fetch file from GitHub
+            fetch(githubRawUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load game');
+                    return response.text();
+                })
+                .then(html => {
+                    // แทนที่เนื้อหาทั้งหน้า / Replace entire page content
+                    document.open();
+                    document.write(html);
+                    document.close();
+                })
+                .catch(error => {
+                    document.body.innerHTML = `
+                        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-size: 1.5em; color: #ff00ff; text-align: center; padding: 20px; background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%);">
+                            <p style="font-size: 3em; margin-bottom: 20px;">⚠️</p>
+                            <p style="margin-bottom: 10px;">Oops! Something went wrong</p>
+                            <p style="font-size: 0.8em; color: #00ffff; margin-bottom: 30px;">${error.message}</p>
+                            <button onclick="location.reload()" style="padding: 15px 30px; font-size: 1em; background: linear-gradient(90deg, #ff00ff, #00ffff); border: none; border-radius: 50px; color: white; cursor: pointer; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">
+                                Back to Home
+                            </button>
+                        </div>
+                    `;
+                });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // กด M เพื่อเปิด/ปิดเพลง / Press M to toggle music
+            if (e.key === 'm' || e.key === 'M') {
+                toggleMusic();
+            }
+        });
+
+        // วิธีการใช้งาน / How to use:
+        // 1. อัพโหลดไฟล์เกมของคุณไปที่ GitHub repository
+        //    Upload your game file to GitHub repository
+        // 
+        // 2. คลิกที่ไฟล์และกด "Raw" เพื่อเห็น URL แบบ raw
+        //    Click the file and press "Raw" to see the raw URL
+        // 
+        // 3. คัดลอก URL นั้นมาใส่ในปุ่ม Play
+        //    Copy that URL to the Play button
+        // 
+        // ตัวอย่าง URL: / Example URL:
+        // https://raw.githubusercontent.com/username/repo-name/main/game.html
+    </script>
+</body>
+</html>
