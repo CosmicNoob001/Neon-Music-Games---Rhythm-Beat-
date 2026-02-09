@@ -527,18 +527,34 @@ const audioManager = {
     init: () => {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            // Preload SFX
+
             ['sfx_copy_btn', 'sfx_copy_success'].forEach(id => {
                 const el = document.getElementById(id);
-                if(el && el.src) {
-                    fetch(el.src).then(r=>r.arrayBuffer()).then(b=>audioCtx.decodeAudioData(b)).then(d=>{
-                        audioManager.buffers[id] = d;
-                    });
-                }
+                if (!el || !el.src) return;
+
+                fetch(el.src)
+                    .then(r => r.arrayBuffer())
+                    .then(b => audioCtx.decodeAudioData(b))
+                    .then(buf => {
+                        audioManager.buffers[id] = buf;
+                    })
+                    .catch(err => console.error('Audio load error', err));
             });
         }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
     },
+
+    playBuffer: (id) => {
+        if (!audioCtx || !audioManager.buffers[id]) return;
+        const src = audioCtx.createBufferSource();
+        src.buffer = audioManager.buffers[id];
+        src.connect(audioCtx.destination);
+        src.start(0);
+    }
+};
     
     playBuffer: (id) => {
         if (!audioCtx || !SETTINGS.sfx || !audioManager.buffers[id]) return;
