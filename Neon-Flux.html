@@ -233,6 +233,9 @@
         z-index: 100; pointer-events: none; box-shadow: 0 0 20px var(--accent-success);
     }
     #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    #gameCanvas {
+    pointer-events: none;
+        }
 </style>
 <script id="game-config" type="application/x-game-config">
 { "heroSpeed": { "type": "number", "label": "Hero Speed", "value": 5, "min": 1, "max": 20 },
