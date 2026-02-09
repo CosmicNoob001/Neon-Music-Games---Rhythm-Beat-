@@ -460,8 +460,10 @@
  * - URL Import & Local File Upload
  * - Procedural beatmapping
  * - Copy Source Code Feature
- */
-
+ */// ===== FIX: GLOBAL INIT =====
+    let audioCtx = null;
+    let gameState = 'menu';
+    let currentSong = null;
 // --- CONFIGURATION ---
 const DIFFICULTY_PRESETS = {
     NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2 },
