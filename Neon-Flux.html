@@ -209,6 +209,14 @@
     .mod-badge {
         font-size: 0.65rem; padding: 2px 4px; border-radius: 2px; background: #333; color: #fff; margin-left: 2px;
     }
+    .touch-controls,
+.arrow-controls {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 9999;
+            }
 </style>
 <script id="game-config" type="application/x-game-config">
 { "heroSpeed": { "type": "number", "label": "Hero Speed", "value": 5, "min": 1, "max": 20 },
