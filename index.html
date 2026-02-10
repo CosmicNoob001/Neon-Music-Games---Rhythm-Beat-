@@ -397,46 +397,8 @@
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
         async function loadGame() {
             // URL ที่จะดึงไฟล์ HTML มาทดแทนหน้าเว็บทั้งหมด
-            location.href = 'https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html​';
-            // ถ้าต้องการใช้ URL ที่คุณให้เป๊ะๆ ให้แทน string ข้างบนด้วย:
-            // 'https://raw.githubusercontent.com/CosmicNoob001/Neon-Music-Games---Rhythm-Beat-/refs/heads/main/Neon-Flux.html'
-
-            // แสดง overlay โหลดระหว่างรอดาวน์โหลด
-            const overlay = document.createElement('div');
-            overlay.id = 'loadingOverlay';
-            overlay.style.position = 'fixed';
-            overlay.style.top = 0;
-            overlay.style.left = 0;
-            overlay.style.width = '100%';
-            overlay.style.height = '100%';
-            overlay.style.display = 'flex';
-            overlay.style.flexDirection = 'column';
-            overlay.style.justifyContent = 'center';
-            overlay.style.alignItems = 'center';
-            overlay.style.zIndex = 2000;
-            overlay.style.background = 'linear-gradient(180deg, rgba(10,10,20,0.85), rgba(10,10,20,0.95))';
-            overlay.innerHTML = `
-                <div style="color:#ff00ff; font-size:1.6em; margin-bottom:12px;">Loading game...</div>
-                <div style="width:64px; height:64px; border-radius:50%; border:6px solid rgba(255,255,255,0.08); border-top-color:#00ffff; animation:spin 1s linear infinite;"></div>
-                <style>
-                    @keyframes spin { to { transform: rotate(360deg); } }
-                </style>
-            `;
-            document.body.appendChild(overlay);
-
-            try {
-                const resp = await fetch(rawUrl, { cache: 'no-store' });
-                if (!resp.ok) throw new Error('Failed to fetch game: ' + resp.status + ' ' + resp.statusText);
-                const html = await resp.text();
-
-                // แทนที่เอกสารปัจจุบันทั้งหมดด้วย HTML ที่ดาวน์โหลดมา
-                // document.open/write/close จะทับหน้าเว็บทั้งหมด (destroy current page)
-                document.open();
-                document.write(html);
-                document.close();
-
-                // NOTE: หลังจาก document.write เอกสารใหม่จะถูกโหลดและสคริปต์ในนั้นจะทำงานตามปกติ.
-            } catch (error) {
+            window.location.href = "NFgame.html";
+            catch (error) {
                 // หากเกิดข้อผิดพลาด แสดงข้อความสวย ๆ ให้ผู้ใช้และปุ่มกลับหน้าแรก
                 document.body.removeChild(overlay);
                 document.body.innerHTML = `
