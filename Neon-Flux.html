@@ -370,8 +370,8 @@
                 <button class="btn-mod" data-mod="EZ">EASY<div class="text-[9px] mt-1 font-normal opacity-70">Large hits, less dmg</div></button>
                 <button class="btn-mod" data-mod="HR">HARD ROCK<div class="text-[9px] mt-1 font-normal opacity-70">Strict timing, high dmg</div></button>
                 <button class="btn-mod" data-mod="HD">HIDDEN<div class="text-[9px] mt-1 font-normal opacity-70">Notes fade out</div></button>
-                <button class="btn-mod" data-mod="DT">DOUBLE TIME<div class="text-[9px] mt-1 font-normal opacity-70">1.5x Speed</div></button>
-                <button class="btn-mod" data-mod="HT">HALF TIME<div class="text-[9px] mt-1 font-normal opacity-70">0.75x Speed</div></button>
+                <button class="btn-mod" data-mod="DT">DOUBLE TIME<div class="text-[9px] mt-1 font-normal opacity-70">1.2x Speed</div></button>
+                <button class="btn-mod" data-mod="HT">HALF TIME<div class="text-[9px] mt-1 font-normal opacity-70">0.85x Speed</div></button>
             </div>
             <button id="btn-close-mods" class="btn-neon">CONFIRM</button>
         </div>
@@ -477,7 +477,7 @@ const DIFFICULTY_PRESETS = {
     NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2 },
     HARD:   { speed: 11, sensitivity: 1.15, holdChance: 0.3 },
     MASTER: { speed: 14, sensitivity: 0.95, holdChance: 0.4 },
-    CRAZY:  { speed: 15, sensitivity: 0.75, holdChance: 0.5 }
+    CRAZY:  { speed: 14.27, sensitivity: 0.55, holdChance: 0.65 }
 };
 
 const CONFIG = {
@@ -706,12 +706,14 @@ function initUI() {
     document.getElementById('btn-load-url').addEventListener('click', handleUrlLoad);
     document.getElementById('btn-pause').addEventListener('click', togglePause);
     document.getElementById('btn-resume').addEventListener('click', togglePause);
+    document.getElementById('file-upload').addEventListener('change', handleFileUpload);
     document.getElementById('btn-restart-pause').addEventListener('click', restartGame);
     document.getElementById('btn-exit-pause').addEventListener('click', exitToMenu);
     document.getElementById('btn-exit-gameover').addEventListener('click', exitToMenu);
     document.getElementById('btn-send-request').addEventListener('click', handleSendRequest);
 
     // Copy Code Handler
+    /*
     document.getElementById('btn-copy-code').addEventListener('click', function() {
         const btn = this;
         const originalText = btn.innerText;
@@ -755,7 +757,7 @@ function initUI() {
             btn.style.color = "";
             btn.style.background = "";
         }, 2000);
-    });
+    }); */
 }
 
 // --- REQUEST SONG HANDLER ---
@@ -986,6 +988,36 @@ async function handleUrlLoad() {
         alert("Load failed. Ensure the URL allows CORS (Access-Control-Allow-Origin).");
     }
 }
+const fileUpload = document.getElementById('file-upload');
+const btnTriggerUpload = document.getElementById('btn-trigger-upload');
+btnTriggerUpload.addEventListener('click', () => fileUpload.click());
+async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('url-input').value = "";
+    audioManager.init();
+    
+    const isVideo = file.type.startsWith('video');
+    const forceVideo = document.getElementById('force-video').checked;
+    isVideoMode = forceVideo || isVideo;
+
+    setLoading(true, isVideoMode ? "Processing Video File..." : "Processing Audio File...");
+
+    try {
+        if (isVideoMode) {
+            const objectUrl = URL.createObjectURL(file);
+            videoEl.src = objectUrl;
+            videoEl.load();
+        }
+        const arrayBuffer = await file.arrayBuffer();
+        await processAudio(arrayBuffer);
+    } catch (err) {
+        console.error(err);
+        setLoading(false);
+        alert("File load failed.");
+    }
+}
+
 
 async function processAudio(arrayBuffer) {
     setLoading(true, "Decoding Data...");
@@ -1032,8 +1064,8 @@ function startGame() {
     
     // Calculate Speed Multiplier based on Mods
     speedMultiplier = 1.0;
-    if (activeMods.DT) speedMultiplier = 1.5;
-    if (activeMods.HT) speedMultiplier = 0.75;
+    if (activeMods.DT) speedMultiplier = 1.2;
+    if (activeMods.HT) speedMultiplier = 0.85;
 
     notes.forEach(n => {
         n.hit = false;
