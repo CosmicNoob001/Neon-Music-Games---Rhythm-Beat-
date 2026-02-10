@@ -395,29 +395,10 @@
         }, { once: true });
 
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
-        async function loadGame() {
-            try {
-            // URL ที่จะดึงไฟล์ HTML มาทดแทนหน้าเว็บทั้งหมด
-            window.location.href = "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html";
-            }​ catch (error) {
-                // หากเกิดข้อผิดพลาด แสดงข้อความสวย ๆ ให้ผู้ใช้และปุ่มกลับหน้าแรก
-                document.body.removeChild(overlay);
-                document.body.innerHTML = `
-                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#060313;color:#ff00ff;padding:20px;text-align:center;">
-                        <div style="font-size:3em;margin-bottom:10px;">⚠️</div>
-                        <h2 style="margin-bottom:10px;">ไม่สามารถโหลดเกมได้ / Could not load game</h2>
-                        <p style="color:#00ffff;margin-bottom:24px;max-width:780px;">${error.message}</p>
-                        <div style="display:flex;gap:12px;">
-                            <button onclick="location.reload()" style="padding:12px 22px;border-radius:999px;border:none;background:linear-gradient(90deg,#ff00ff,#00ffff);color:#fff;font-weight:bold;cursor:pointer;">
-                                กลับหน้าแรก / Reload
-                            </button>
-                            <a href="${rawUrl}" target="_blank" rel="noopener noreferrer" style="padding:12px 22px;border-radius:999px;text-decoration:none;background:rgba(255,255,255,0.06);color:#fff;display:inline-flex;align-items:center;justify-content:center;">
-                                เปิดในแท็บใหม่ / Open raw
-                            </a>
-                        </div>
-                    </div>
-                `;
-            }
+        function loadGame() {
+    window.location.assign(
+      "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html"
+    );
         }
 
         // Keyboard shortcuts
