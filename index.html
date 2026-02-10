@@ -396,11 +396,25 @@
 
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
         function loadGame() {
-    window.location.assign(
-      "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html"
-    );
+            const gameUrl = "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html";
+            
+            // ตรวจสอบว่า URL นั้นเข้าถึงได้
+            fetch(gameUrl, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        // ถ้า URL เข้าถึงได้ ให้เปลี่ยนหน้า
+                        window.location.href = gameUrl;
+                    } else {
+                        // ถ้า URL ไม่เข้าถึงได้
+                        alert('❌ ไม่สามารถเข้าถึงเกมได้\nURL: ' + gameUrl + '\n\nกรุณาตรวจสอบว่าไฟล์ Neon-Flux.html มีอยู่จริงในอยู่ GitHub Pages');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking game file:', error);
+                    // ถ้าเกิดข้อผิดพลาด ให้เปลี่ยนหน้าไปยัง URL นั้นต่อไป
+                    window.location.href = gameUrl;
+                });
         }
-
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // กด M เพื่อเปิด/ปิดเพลง / Press M to toggle music
