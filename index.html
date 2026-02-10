@@ -396,9 +396,10 @@
 
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
         async function loadGame() {
+            try {
             // URL ที่จะดึงไฟล์ HTML มาทดแทนหน้าเว็บทั้งหมด
             window.location.href = "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html";
-            catch (error) {
+            }​ catch (error) {
                 // หากเกิดข้อผิดพลาด แสดงข้อความสวย ๆ ให้ผู้ใช้และปุ่มกลับหน้าแรก
                 document.body.removeChild(overlay);
                 document.body.innerHTML = `
