@@ -477,7 +477,7 @@ const DIFFICULTY_PRESETS = {
     NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2 },
     HARD:   { speed: 11, sensitivity: 1.15, holdChance: 0.3 },
     MASTER: { speed: 14, sensitivity: 0.95, holdChance: 0.4 },
-    CRAZY:  { speed: 14.27, sensitivity: 0.55, holdChance: 0.65 }
+    CRAZY:  { speed: 14.27, sensitivity: 0, holdChance: 1.5 }
 };
 
 const CONFIG = {
@@ -815,72 +815,127 @@ function handleSendRequest() {
 async function analyzeAudio(buffer) {
     const channelData = buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
-    
+
     notes = [];
-    const windowSize = 0.05; 
+    const windowSize = 0.04; 
     const samplesPerWindow = Math.floor(sampleRate * windowSize);
     const settings = DIFFICULTY_PRESETS[currentDifficulty];
+
     const sensitivity = settings.sensitivity;
-    
-    // Simple energy-based onset detection
+
     const energyMap = [];
+
+    // --- STEP 1: Calculate RMS Energy ---
     for (let i = 0; i < channelData.length; i += samplesPerWindow) {
         let sum = 0;
         for (let j = 0; j < samplesPerWindow && i + j < channelData.length; j++) {
             const s = channelData[i + j];
             sum += s * s;
         }
-        energyMap.push({ 
-            time: i / sampleRate, 
-            energy: Math.sqrt(sum / samplesPerWindow) 
+
+        const rms = Math.sqrt(sum / samplesPerWindow);
+
+        energyMap.push({
+            time: i / sampleRate,
+            energy: rms
         });
     }
-    
-    const historySize = 25;
-    for (let i = historySize; i < energyMap.length; i++) {
-        let localAvg = 0;
-        for (let j = 1; j <= historySize; j++) localAvg += energyMap[i - j].energy;
-        localAvg /= historySize;
-        
+
+    const historySize = 20;
+    const minDistance = currentDifficulty === 'CRAZY' ? 0.08 :
+                        currentDifficulty === 'MASTER' ? 0.12 : 0.18;
+
+    let lastNoteTime = -999;
+
+    // --- STEP 2: Onset Detection using Energy + Delta ---
+    for (let i = historySize; i < energyMap.length - 1; i++) {
+
         const current = energyMap[i];
-        
-        if (current.energy > localAvg * sensitivity && current.energy > 0.01) {
-            // Peak finding
-            if (current.energy > energyMap[i-1].energy && 
-               (i+1 >= energyMap.length || current.energy > energyMap[i+1].energy)) {
-                
-                const minDistance = currentDifficulty === 'CRAZY' ? 0.08 : (currentDifficulty === 'MASTER' ? 0.12 : 0.18);
-                if (notes.length > 0 && current.time - notes[notes.length-1].time < minDistance) continue;
-                
-                const seed = Math.floor(current.time * 12345);
-                const lane = seed % CONFIG.lanes;
-                
-                notes.push({
-                    time: current.time,
-                    lane: lane,
-                    type: 'TAP',
-                    duration: 0,
-                    hit: false,
-                    missed: false,
-                    holding: false,
-                    processed: false
-                });
+        const prev = energyMap[i - 1];
+
+        // local average
+        let localAvg = 0;
+        for (let j = 1; j <= historySize; j++) {
+            localAvg += energyMap[i - j].energy;
+        }
+        localAvg /= historySize;
+
+        const delta = current.energy - prev.energy;
+
+        // 조건: energy สูง + เพิ่มขึ้นเร็ว
+        if (
+            current.energy > localAvg * sensitivity &&
+            delta > 0.005 &&
+            current.energy > 0.015
+        ) {
+            // peak check
+            if (
+                current.energy > energyMap[i - 1].energy &&
+                current.energy > energyMap[i + 1].energy
+            ) {
+                if (current.time - lastNoteTime < minDistance) continue;
+
+                lastNoteTime = current.time;
+
+                // ---- LANE SELECTION BASED ON ENERGY ----
+                // ไม่สุ่ม แต่กระจายตามพลังงาน
+                const baseLane = Math.floor(
+                    (current.energy * 1000) % CONFIG.lanes
+                );
+
+                const noteStrength = current.energy / localAvg;
+
+                // ===== SINGLE NOTE =====
+                notes.push(createNote(current.time, baseLane));
+
+                // ===== DOUBLE NOTE (STRONG BEAT) =====
+                if (noteStrength > 2.2 && CONFIG.lanes >= 4) {
+                    const secondLane = (baseLane + 2) % CONFIG.lanes;
+                    notes.push(createNote(current.time, secondLane));
+                }
+
+                // ===== TRIPLE (CRAZY MODE) =====
+                if (
+                    currentDifficulty === "CRAZY" &&
+                    noteStrength > 3.0 &&
+                    CONFIG.lanes >= 4
+                ) {
+                    const thirdLane = (baseLane + 1) % CONFIG.lanes;
+                    notes.push(createNote(current.time, thirdLane));
+                }
             }
         }
     }
 
-    // Convert some Taps to Holds
+    // --- STEP 3: Convert Some Notes to HOLD Based on Real Gaps ---
     for (let i = 0; i < notes.length - 1; i++) {
         const curr = notes[i];
-        const next = notes[i+1];
+        const next = notes[i + 1];
+
         const gap = next.time - curr.time;
-        if (gap > 0.5 && Math.random() < settings.holdChance) {
+
+        if (gap > 0.6 && gap < 2.5) {
             curr.type = 'HOLD';
-            curr.duration = Math.min(gap - 0.2, 2.0);
+            curr.duration = gap - 0.15;
         }
     }
+
     return notes;
 }
+
+// Helper
+function createNote(time, lane) {
+    return {
+        time: time,
+        lane: lane,
+        type: 'TAP',
+        duration: 0,
+        hit: false,
+        missed: false,
+        holding: false,
+        processed: false
+    };
+    }
 
 // --- CORE FUNCTIONS ---
 function initGame() {
