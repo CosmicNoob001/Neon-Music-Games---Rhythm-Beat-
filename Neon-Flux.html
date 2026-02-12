@@ -677,30 +677,71 @@ function initUI() {
 
     // Touch Inputs
     const touchZone = document.getElementById('touch-controls');
-    const lanes = touchZone.querySelectorAll('div');
-    lanes.forEach(div => {
-        const rawLane = parseInt(div.dataset.lane);
-        
-        const handlePress = (e) => {
-            e.preventDefault();
-            div.releasePointerCapture(e.pointerId);
-            laneHeld[rawLane] = true;
-            if (gameState === 'PLAYING' && !isPaused) {
-                checkHit(rawLane);
-                laneEffects[rawLane] = 1;
-            }
-        };
 
-        const handleRelease = (e) => {
-            e.preventDefault();
-            laneHeld[rawLane] = false;
-        };
+let activePointers = {}; 
+// pointerId → lane
 
-        div.addEventListener('pointerdown', handlePress);
-        div.addEventListener('pointerup', handleRelease);
-        div.addEventListener('pointerleave', handleRelease);
-        div.addEventListener('pointercancel', handleRelease);
-    });
+function getLaneFromX(x) {
+    const rect = touchZone.getBoundingClientRect();
+    const relativeX = x - rect.left;
+    const laneWidth = rect.width / CONFIG.lanes;
+    return Math.max(0, Math.min(CONFIG.lanes - 1, Math.floor(relativeX / laneWidth)));
+}
+
+touchZone.style.touchAction = "none";
+
+touchZone.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+
+    const lane = getLaneFromX(e.clientX);
+
+    activePointers[e.pointerId] = lane;
+    laneHeld[lane] = true;
+
+    if (gameState === 'PLAYING' && !isPaused) {
+        checkHit(lane);
+        laneEffects[lane] = 1;
+    }
+});
+
+touchZone.addEventListener('pointermove', (e) => {
+    if (!(e.pointerId in activePointers)) return;
+
+    const oldLane = activePointers[e.pointerId];
+    const newLane = getLaneFromX(e.clientX);
+
+    if (oldLane !== newLane) {
+
+        laneHeld[oldLane] = false;
+
+        laneHeld[newLane] = true;
+
+        if (gameState === 'PLAYING' && !isPaused) {
+            checkHit(newLane);
+            laneEffects[newLane] = 1;
+        }
+
+        activePointers[e.pointerId] = newLane;
+    }
+});
+
+touchZone.addEventListener('pointerup', (e) => {
+    if (!(e.pointerId in activePointers)) return;
+
+    const lane = activePointers[e.pointerId];
+    laneHeld[lane] = false;
+
+    delete activePointers[e.pointerId];
+});
+
+touchZone.addEventListener('pointercancel', (e) => {
+    if (!(e.pointerId in activePointers)) return;
+
+    const lane = activePointers[e.pointerId];
+    laneHeld[lane] = false;
+
+    delete activePointers[e.pointerId];
+});
 
     // Button Actions
     document.getElementById('btn-load-url').addEventListener('click', handleUrlLoad);
@@ -1567,7 +1608,29 @@ function gameLoop() {
 
 // Start
 document.addEventListener('DOMContentLoaded', initGame);
+// KeyBoard Support
+	const keyMap = {
+    "KeyD": 0,
+    "KeyF": 1,
+    "KeyJ": 2,
+    "KeyK": 3
+};
 
+window.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    if (keyMap[e.code] !== undefined) {
+        const lane = keyMap[e.code];
+        laneHeld[lane] = true;
+        checkHit(lane);
+        laneEffects[lane] = 1;
+    }
+});
+
+window.addEventListener("keyup", (e) => {
+    if (keyMap[e.code] !== undefined) {
+        laneHeld[keyMap[e.code]] = false;
+    }
+}); 
 </script>
 
 </body></html>
