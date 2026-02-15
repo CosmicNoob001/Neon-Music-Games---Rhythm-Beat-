@@ -372,6 +372,7 @@
                 <button class="btn-mod" data-mod="HD">HIDDEN<div class="text-[9px] mt-1 font-normal opacity-70">Notes fade out</div></button>
                 <button class="btn-mod" data-mod="DT">DOUBLE TIME<div class="text-[9px] mt-1 font-normal opacity-70">1.2x Speed</div></button>
                 <button class="btn-mod" data-mod="HT">HALF TIME<div class="text-[9px] mt-1 font-normal opacity-70">0.85x Speed</div></button>
+                <button class="btn-mod" data-mod="PF">PF - Perfectionist<div class="text-[9px] mt-1 font-normal opacity-70">Only PERFECT counts</div></button>
             </div>
             <button id="btn-close-mods" class="btn-neon">CONFIRM</button>
         </div>
@@ -465,7 +466,7 @@
  * ------------------------------
  * Features:
  * - URL Import only.
- * - Mods System (NF, EZ, HR, HD, DT, HT).
+ * - Mods System (NF, EZ, HR, HD, DT, HT, PF).
  * - Settings Menu (SFX, FX, LaneBG, BG Dim).
  * - Request Song Webhook System (Manual Trigger).
  * - Procedural beatmap generation.
@@ -477,7 +478,7 @@ const DIFFICULTY_PRESETS = {
     NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2 },
     HARD:   { speed: 11, sensitivity: 1.15, holdChance: 0.3 },
     MASTER: { speed: 14, sensitivity: 0.95, holdChance: 0.4 },
-    CRAZY:  { speed: 14.27, sensitivity: 0, holdChance: 1.5 }
+    CRAZY:  { speed: 14.27, sensitivity: 0, holdChance: 2 }
 };
 
 const CONFIG = {
@@ -524,7 +525,8 @@ let activeMods = {
     HR: false, // Hard Rock
     HD: false, // Hidden
     DT: false, // Double Time
-    HT: false  // Half Time
+    HT: false, // Half Time
+    PF: false  // Perfectionist
 };
 
 // Settings
@@ -623,7 +625,9 @@ function initUI() {
             if (mod === 'DT' && activeMods.DT) activeMods.HT = false;
             if (mod === 'HT' && activeMods.HT) activeMods.DT = false;
             if (mod === 'EZ' && activeMods.EZ) activeMods.HR = false;
+            if (mod === 'EZ' && activeMods.EZ) activeMods.PF = false;
             if (mod === 'HR' && activeMods.HR) activeMods.EZ = false;
+            if (mod === 'PF' && activeMods.PF) activeMods.EZ = false;
             
             // Refresh visuals
             document.querySelectorAll('.btn-mod').forEach(b => {
@@ -976,7 +980,7 @@ function createNote(time, lane) {
         holding: false,
         processed: false
     };
-    }
+}
 
 // --- CORE FUNCTIONS ---
 function initGame() {
@@ -1281,22 +1285,55 @@ function checkHit(lane) {
         let color = "#fff";
         
         if (minDiff <= perfectWindow) {
-            points = 300;
-            text = "PERFECT";
-            color = "#00FF80";
-            stats.perfect++;
-            createParticles(lane, 15, color);
-            audioManager.playSfx('PERFECT');
-            heal();
-        } else {
-            points = 100;
-            text = "GOOD";
-            color = "#00E5FF";
-            stats.good++;
-            createParticles(lane, 8, color);
-            audioManager.playSfx('GOOD'); // Reuse sound
-            heal();
+
+    points = 300;
+    text = "PERFECT";
+    color = "#00FF80";
+    stats.perfect++;
+    createParticles(lane, 15, color);
+    audioManager.playSfx('PERFECT');
+    heal();
+
+} else {
+
+    if (activeMods.PF) {
+        // GOOD กลายเป็น MISS
+        bestNote.missed = true;
+        bestNote.hit = false;
+
+        text = "MISS";
+        color = "#FF3B3B";
+        stats.miss++;
+
+        combo = 0;
+        takeDamage(); // ถ้าคุณมีระบบลด HP
+
+        audioManager.playSfx('MISS');
+
+        if (SETTINGS.fx) {
+            popups.push({
+                text: text,
+                x: getLaneX(lane),
+                y: window.innerHeight * 0.65,
+                life: 0.8,
+                color: color,
+                scale: 1.2
+            });
         }
+
+        updateHUD();
+        return; // หยุดเลย ไม่ให้ได้คะแนน
+    }
+
+    // GOOD ปกติ
+    points = 100;
+    text = "GOOD";
+    color = "#00E5FF";
+    stats.good++;
+    createParticles(lane, 8, color);
+    audioManager.playSfx('GOOD');
+    heal();
+}
 
         if (bestNote.type === 'HOLD') {
             bestNote.holding = true;
@@ -1608,8 +1645,9 @@ function gameLoop() {
 
 // Start
 document.addEventListener('DOMContentLoaded', initGame);
-// KeyBoard Support
-	const keyMap = {
+
+// Keyboard Support
+const keyMap = {
     "KeyD": 0,
     "KeyF": 1,
     "KeyJ": 2,
@@ -1630,7 +1668,7 @@ window.addEventListener("keyup", (e) => {
     if (keyMap[e.code] !== undefined) {
         laneHeld[keyMap[e.code]] = false;
     }
-}); 
+});
 </script>
 
 </body></html>
