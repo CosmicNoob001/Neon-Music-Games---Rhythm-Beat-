@@ -398,6 +398,7 @@
                 <button class="btn-mod" data-mod="DT">DOUBLE TIME<div class="text-[9px] mt-1 font-normal opacity-70">1.2x Speed</div></button>
                 <button class="btn-mod" data-mod="HT">HALF TIME<div class="text-[9px] mt-1 font-normal opacity-70">0.85x Speed</div></button>
                 <button class="btn-mod" data-mod="PF">PF - Perfectionist<div class="text-[9px] mt-1 font-normal opacity-70">Only PERFECT counts</div></button>
+                <button class="btn-mod" data-mod="UNF">UNF - Unfixed Speed<div class="text-[9px] mt-1 font-normal opacity-70">Adaptive note speed</div></button>
             </div>
             <button id="btn-close-mods" class="btn-neon">CONFIRM</button>
         </div>
@@ -427,6 +428,11 @@
                 <label class="checkbox-wrapper">
                     <span class="checkbox-label">Dark Background</span>
                     <input type="checkbox" id="set-bg-dim" class="checkbox-input" checked="">
+                </label>
+
+                <label class="checkbox-wrapper">
+                    <span class="checkbox-label">Force Audio-only for Videos</span>
+                    <input type="checkbox" id="set-force-audio" class="checkbox-input">
                 </label>
 
                 <!-- NEW: Horizontal Fullscreen (Mania) toggle -->
@@ -488,7 +494,12 @@
                 <div id="stat-miss" class="text-xl font-bold text-red-400">0</div>
             </div>
         </div>
-        
+
+        <div class="flex items-center justify-center mb-4">
+            <div class="text-[9px] text-gray-400 tracking-widest mr-2">MAX COMBO</div>
+            <div id="stat-maxcombo" class="text-xl font-bold text-yellow-400">0</div>
+        </div>
+
         <!-- NEW: Retry button -->
         <div class="flex gap-2 mb-4 w-full max-w-xs">
             <button id="btn-retry-gameover" class="btn-neon w-1/2">RETRY</button>
@@ -520,10 +531,10 @@
 
 // --- CONFIGURATION ---
 const DIFFICULTY_PRESETS = {
-    NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2 },
-    HARD:   { speed: 11, sensitivity: 1.15, holdChance: 0.3 },
-    MASTER: { speed: 14, sensitivity: 0.95, holdChance: 0.4 },
-    CRAZY:  { speed: 14.27, sensitivity: 0, holdChance: 2 }
+    NORMAL: { speed: 8,  sensitivity: 1.4, holdChance: 0.2, minSpeed: 6,  maxSpeed: 10 },
+    HARD:   { speed: 11, sensitivity: 1.15, holdChance: 0.3, minSpeed: 9,  maxSpeed: 13 },
+    MASTER: { speed: 14, sensitivity: 0.95, holdChance: 0.4, minSpeed: 12, maxSpeed: 18 },
+    CRAZY:  { speed: 14.27, sensitivity: 0, holdChance: 2, minSpeed: 12, maxSpeed: 20 }
 };
 
 const CONFIG = {
@@ -545,6 +556,9 @@ const bgOverlay = document.getElementById('bg-overlay-layer');
 
 let animationFrameId;
 let lastTime = 0;
+// Adaptive speed cache (throttled calculation)
+let lastSpeedCalc = 0;
+let cachedAdaptiveSpeed = DIFFICULTY_PRESETS.NORMAL.speed;
 
 // Game State
 let gameState = 'MENU'; 
@@ -561,6 +575,7 @@ let score = 0;
 let combo = 0;
 let health = 100;
 let stats = { perfect: 0, good: 0, miss: 0 };
+let maxCombo = 0; // highest combo reached this session (updated on miss or end)
 let currentDifficulty = 'NORMAL';
 
 // Mods
@@ -572,6 +587,7 @@ let activeMods = {
     DT: false, // Double Time
     HT: false, // Half Time
     PF: false  // Perfectionist
+    ,UNF: false // Unfixed Speed (adaptive note speed)
 };
 
 // Settings
@@ -581,7 +597,8 @@ let SETTINGS = {
     laneBg: true, // "Arrow Background"
     bgDim: true,   // "Background Transparency" (Dark vs Light)
     mania: false,  // Horizontal centered fullscreen (osu!mania style)
-    retryKey: 'KeyR' // default retry shortcut (can be changed by user)
+    retryKey: 'KeyR', // default retry shortcut (can be changed by user)
+    forceAudioForVideos: false // when true, treat video tracks as audio-only
 };
 
 // Chart Data
@@ -708,6 +725,7 @@ function initUI() {
     const chkLaneBg = document.getElementById('set-lane-bg');
     const chkBgDim = document.getElementById('set-bg-dim');
     const chkMania = document.getElementById('set-mania'); // NEW
+    const chkForceAudio = document.getElementById('set-force-audio'); // NEW
     const btnSetRetryKey = document.getElementById('btn-set-retry-key');
 
     function displayKeyLabel(code) {
@@ -723,6 +741,7 @@ function initUI() {
         settingsOverlay.classList.remove('hidden');
         // reflect current setting
         chkMania.checked = SETTINGS.mania;
+        chkForceAudio.checked = !!SETTINGS.forceAudioForVideos;
         btnSetRetryKey.innerText = displayKeyLabel(SETTINGS.retryKey);
     });
 
@@ -782,6 +801,11 @@ function initUI() {
         if (isVideoMode) {
             bgOverlay.style.background = SETTINGS.bgDim ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.3)';
         }
+    });
+
+    // Force audio-only for video tracks
+    chkForceAudio.addEventListener('change', (e) => {
+        SETTINGS.forceAudioForVideos = e.target.checked;
     });
 
     // NEW: mania toggle listener
@@ -1210,13 +1234,17 @@ function resetGameVars() {
     combo = 0;
     health = CONFIG.startHealth;
     laneHeld = [false, false, false, false];
+    maxCombo = 0;
 }
 
 function restartGame() {
     stopPlayback();
-    document.getElementById('pause-menu').addEventListener('click', restartGame);
+    // Ensure pause menu is closed when restarting from pause
+    const pauseMenuEl = document.getElementById('pause-menu');
+    if (pauseMenuEl) pauseMenuEl.classList.add('hidden');
     document.getElementById('game-over-screen').classList.add('hidden');
     isPaused = false;
+    resetGameVars();
     startGame();
 }
 
@@ -1250,6 +1278,11 @@ async function handleUrlLoad() {
     // Check manual override first, then auto-detect
     const forceVideo = document.getElementById('force-video').checked;
     isVideoMode = forceVideo || videoExts.includes(ext);
+
+    // If user prefers audio-only for videos, override detection
+    if (SETTINGS.forceAudioForVideos) {
+        isVideoMode = false;
+    }
     
     setLoading(true, isVideoMode ? "Fetching Video..." : "Fetching Audio...");
 
@@ -1284,6 +1317,11 @@ async function handleFileUpload(e) {
     const isVideo = file.type.startsWith('video');
     const forceVideo = document.getElementById('force-video').checked;
     isVideoMode = forceVideo || isVideo;
+
+    // Respect global setting: force audio-only for videos (applies to local files too)
+    if (SETTINGS.forceAudioForVideos) {
+        isVideoMode = false;
+    }
 
     setLoading(true, isVideoMode ? "Processing Video File..." : "Processing Audio File...");
 
@@ -1390,6 +1428,8 @@ function startGame() {
 
 function endGame(win = false) {
     gameState = 'GAMEOVER';
+    // ensure we capture highest combo at end of session
+    maxCombo = Math.max(maxCombo, combo);
     stopPlayback();
     
     document.getElementById('hud').classList.add('hidden');
@@ -1402,6 +1442,7 @@ function endGame(win = false) {
     document.getElementById('stat-perfect').innerText = stats.perfect;
     document.getElementById('stat-good').innerText = stats.good;
     document.getElementById('stat-miss').innerText = stats.miss;
+    document.getElementById('stat-maxcombo').innerText = maxCombo;
 }
 
 // --- GAME LOOP & LOGIC ---
@@ -1489,6 +1530,8 @@ function checkHit(lane) {
         color = "#FF3B3B";
         stats.miss++;
 
+        // Record max combo before resetting to avoid updating every frame
+        maxCombo = Math.max(maxCombo, combo);
         combo = 0;
         takeDamage(); // ถ้าคุณมีระบบลด HP
 
@@ -1644,8 +1687,39 @@ function gameLoop() {
     
     if (gameState === 'PLAYING' && !isPaused) {
         const songTime = getGameTime();
-        const currentSpeed = DIFFICULTY_PRESETS[currentDifficulty].speed;
-        const noteSpeedPx = currentSpeed * 80; 
+        // base speed for current difficulty
+        const baseSpeed = DIFFICULTY_PRESETS[currentDifficulty].speed;
+
+        // Adaptive Unfixed Speed Mod: only recalc every 200ms to save CPU
+        let effectiveSpeed = baseSpeed;
+        if (activeMods.UNF) {
+            const nowMs = performance.now();
+            if (nowMs - lastSpeedCalc > 200) {
+                lastSpeedCalc = nowMs;
+
+                // gather upcoming notes (next up to 12 notes) that are not missed
+                const upcoming = notes.filter(n => !n.missed && n.time > songTime).slice(0, 12);
+                if (upcoming.length >= 2) {
+                    let diffs = [];
+                    for (let i = 1; i < upcoming.length; i++) diffs.push(Math.max(0.001, upcoming[i].time - upcoming[i-1].time));
+                    const avgIOI = diffs.reduce((a,b) => a+b, 0) / diffs.length; // seconds between notes
+
+                    // reference IOI roughly mapped to baseSpeed (0.5s -> baseSpeed)
+                    const refIOI = 0.5;
+                    let estSpeed = baseSpeed * (refIOI / avgIOI);
+
+                    // clamp to difficulty min/max to preserve intended challenge
+                    const preset = DIFFICULTY_PRESETS[currentDifficulty];
+                    const minS = preset.minSpeed || (baseSpeed * 0.6);
+                    const maxS = preset.maxSpeed || (baseSpeed * 1.6);
+                    estSpeed = Math.max(minS, Math.min(maxS, estSpeed));
+                    cachedAdaptiveSpeed = estSpeed;
+                }
+            }
+            effectiveSpeed = cachedAdaptiveSpeed;
+        }
+
+        const noteSpeedPx = effectiveSpeed * 80;
         
         // Draw Lanes
         for (let i = 0; i < CONFIG.lanes; i++) {
@@ -1720,6 +1794,8 @@ function gameLoop() {
                     if (songTime < tailTime - 0.1) {
                         note.processed = true;
                         note.missed = true;
+                        // record max combo at the moment of miss/drop
+                        maxCombo = Math.max(maxCombo, combo);
                         combo = 0;
                         stats.miss++;
                         takeDamage(); 
@@ -1745,6 +1821,8 @@ function gameLoop() {
             if (timeDiff < -0.2 && !note.hit && !note.missed) {
                 note.missed = true;
                 stats.miss++;
+                // record max combo before resetting
+                maxCombo = Math.max(maxCombo, combo);
                 combo = 0;
                 takeDamage();
                 if (SETTINGS.fx) {
