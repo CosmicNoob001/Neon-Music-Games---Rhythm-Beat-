@@ -1272,109 +1272,103 @@ async function analyzeAudio(buffer) {
     const sampleRate = buffer.sampleRate;
 
     notes = [];
-    const windowSize = 0.04; 
-    const samplesPerWindow = Math.floor(sampleRate * windowSize);
+    const windowSize = 0.04;
+    const samplesPerWindow = Math.max(256, Math.floor(sampleRate * windowSize));
     const settings = DIFFICULTY_PRESETS[currentDifficulty];
-
     const sensitivity = settings.sensitivity;
 
     const energyMap = [];
 
-    // --- STEP 1: Calculate RMS Energy ---
-    for (let i = 0; i < channelData.length; i += samplesPerWindow) {
-        let sum = 0;
-        for (let j = 0; j < samplesPerWindow && i + j < channelData.length; j++) {
-            const s = channelData[i + j];
-            sum += s * s;
+    // --- STEP 1: Calculate RMS Energy (chunked) ---
+    const totalWindows = Math.ceil(channelData.length / samplesPerWindow);
+    const chunkWindows = 256; // windows per chunk
+    for (let wStart = 0; wStart < totalWindows; wStart += chunkWindows) {
+        const wEnd = Math.min(totalWindows, wStart + chunkWindows);
+        for (let wi = wStart; wi < wEnd; wi++) {
+            const i = wi * samplesPerWindow;
+            let sum = 0;
+            for (let j = 0; j < samplesPerWindow && i + j < channelData.length; j++) {
+                const s = channelData[i + j];
+                sum += s * s;
+            }
+            const rms = Math.sqrt(sum / samplesPerWindow);
+            energyMap.push({ time: (i) / sampleRate, energy: rms });
         }
 
-        const rms = Math.sqrt(sum / samplesPerWindow);
+        // update UI progress
+        const pct = Math.floor((energyMap.length / totalWindows) * 50); // first phase 0-50%
+        setLoading(true, `Generating ${currentDifficulty} Chart... (${pct}%)`);
 
-        energyMap.push({
-            time: i / sampleRate,
-            energy: rms
-        });
+        // yield to UI
+        await new Promise(r => setTimeout(r, 0));
     }
 
     const historySize = 20;
     const minDistance = currentDifficulty === 'CRAZY' ? 0.08 :
                         currentDifficulty === 'MASTER' ? 0.12 : 0.18;
-
     let lastNoteTime = -999;
 
-    // --- STEP 2: Onset Detection using Energy + Delta ---
-    for (let i = historySize; i < energyMap.length - 1; i++) {
+    // --- STEP 2: Onset Detection using Energy + Delta (chunked) ---
+    const totalSteps = Math.max(0, energyMap.length - 1 - historySize);
+    const chunkSteps = 512;
+    for (let sStart = historySize; sStart < energyMap.length - 1; sStart += chunkSteps) {
+        const sEnd = Math.min(energyMap.length - 1, sStart + chunkSteps);
+        for (let i = sStart; i < sEnd; i++) {
+            const current = energyMap[i];
+            const prev = energyMap[i - 1];
 
-        const current = energyMap[i];
-        const prev = energyMap[i - 1];
+            // local average
+            let localAvg = 0;
+            for (let j = 1; j <= historySize; j++) localAvg += energyMap[i - j].energy;
+            localAvg /= historySize;
 
-        // local average
-        let localAvg = 0;
-        for (let j = 1; j <= historySize; j++) {
-            localAvg += energyMap[i - j].energy;
-        }
-        localAvg /= historySize;
+            const delta = current.energy - prev.energy;
 
-        const delta = current.energy - prev.energy;
+            if (current.energy > localAvg * sensitivity && delta > 0.005 && current.energy > 0.015) {
+                if (current.energy > energyMap[i - 1].energy && current.energy > energyMap[i + 1].energy) {
+                    if (current.time - lastNoteTime < minDistance) continue;
+                    lastNoteTime = current.time;
 
-        // 조건: energy สูง + เพิ่มขึ้นเร็ว
-        if (
-            current.energy > localAvg * sensitivity &&
-            delta > 0.005 &&
-            current.energy > 0.015
-        ) {
-            // peak check
-            if (
-                current.energy > energyMap[i - 1].energy &&
-                current.energy > energyMap[i + 1].energy
-            ) {
-                if (current.time - lastNoteTime < minDistance) continue;
+                    const baseLane = Math.floor((current.energy * 1000) % CONFIG.lanes);
+                    const noteStrength = current.energy / localAvg;
 
-                lastNoteTime = current.time;
-
-                // ---- LANE SELECTION BASED ON ENERGY ----
-                // ไม่สุ่ม แต่กระจายตามพลังงาน
-                const baseLane = Math.floor(
-                    (current.energy * 1000) % CONFIG.lanes
-                );
-
-                const noteStrength = current.energy / localAvg;
-
-                // ===== SINGLE NOTE =====
-                notes.push(createNote(current.time, baseLane));
-
-                // ===== DOUBLE NOTE (STRONG BEAT) =====
-                if (noteStrength > 2.2 && CONFIG.lanes >= 4) {
-                    const secondLane = (baseLane + 2) % CONFIG.lanes;
-                    notes.push(createNote(current.time, secondLane));
-                }
-
-                // ===== TRIPLE (CRAZY MODE) =====
-                if (
-                    currentDifficulty === "CRAZY" &&
-                    noteStrength > 3.0 &&
-                    CONFIG.lanes >= 4
-                ) {
-                    const thirdLane = (baseLane + 1) % CONFIG.lanes;
-                    notes.push(createNote(current.time, thirdLane));
+                    notes.push(createNote(current.time, baseLane));
+                    if (noteStrength > 2.2 && CONFIG.lanes >= 4) {
+                        const secondLane = (baseLane + 2) % CONFIG.lanes;
+                        notes.push(createNote(current.time, secondLane));
+                    }
+                    if (currentDifficulty === 'CRAZY' && noteStrength > 3.0 && CONFIG.lanes >= 4) {
+                        const thirdLane = (baseLane + 1) % CONFIG.lanes;
+                        notes.push(createNote(current.time, thirdLane));
+                    }
                 }
             }
         }
+
+        // update progress (50-90%)
+        const processed = Math.min(sEnd - historySize, totalSteps);
+        const pct = 50 + Math.floor((processed / Math.max(1, totalSteps)) * 40);
+        setLoading(true, `Generating ${currentDifficulty} Chart... (${pct}%)`);
+        await new Promise(r => setTimeout(r, 0));
     }
 
     // --- STEP 3: Convert Some Notes to HOLD Based on Real Gaps ---
     for (let i = 0; i < notes.length - 1; i++) {
         const curr = notes[i];
         const next = notes[i + 1];
-
         const gap = next.time - curr.time;
-
         if (gap > 0.6 && gap < 2.5) {
             curr.type = 'HOLD';
             curr.duration = gap - 0.15;
         }
+        if (i % 200 === 0) {
+            const pct = 90 + Math.floor((i / Math.max(1, notes.length)) * 10);
+            setLoading(true, `Generating ${currentDifficulty} Chart... (${pct}%)`);
+            await new Promise(r => setTimeout(r, 0));
+        }
     }
 
+    setLoading(false);
     return notes;
 }
 
