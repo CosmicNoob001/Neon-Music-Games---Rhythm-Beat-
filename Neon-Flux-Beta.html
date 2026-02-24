@@ -666,6 +666,7 @@ let pingSamples = [];
 let localReady = false;
 let remoteReady = false;
 let lastLoadFromPeer = false;
+let pendingStartAt = null;
 
 function setupConnection(c) {
     conn = c;
@@ -721,8 +722,13 @@ function handlePeerData(data) {
         const offset = peerClockOffset || 0;
         const localStart = startAt - offset;
         if (typeof startAt === 'number') {
-            // call startGame with scheduled local epoch ms
-            startGame(localStart);
+            // if we're already ready, start immediately; otherwise store pending
+            if (localReady) {
+                startGame(localStart);
+            } else {
+                pendingStartAt = localStart;
+                const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Start scheduled (waiting for local ready)';
+            }
         }
     } else if (data.type === 'sync-ping') {
         // reply with pong including receive/send timestamps
