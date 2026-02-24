@@ -399,6 +399,7 @@
                     <input id="peer-id-display" class="input-neon" placeholder="Your peer id" readonly>
                     <input id="peer-connect-input" class="input-neon" placeholder="Enter peer id to connect">
                     <button id="peer-connect-btn" class="btn-neon w-auto px-4">Connect</button>
+                    <button id="peer-start-btn" class="btn-neon w-auto px-4">Start Together</button>
                 </div>
                 <div id="peer-status" class="text-[9px] text-gray-400 mt-2">Status: offline</div>
             </div>
@@ -649,6 +650,14 @@ function sendPeerMessage(obj) {
     }
 }
 
+// Sync helpers
+let peerClockOffset = 0; // estimated: peerTime - localTime (ms)
+let peerRtt = 0;
+let pingSamples = [];
+let localReady = false;
+let remoteReady = false;
+let lastLoadFromPeer = false;
+
 function setupConnection(c) {
     conn = c;
     const _ps = document.getElementById('peer-status');
@@ -661,6 +670,8 @@ function setupConnection(c) {
         const _ps2 = document.getElementById('peer-status');
         if (_ps2) _ps2.innerText = 'Connected: ' + c.peer;
         try { c.send({ type: 'hello', id: (peer && peer.id) || null }); } catch (e) {}
+        // start clock sync shortly after open
+        setTimeout(() => startClockSync(6), 200);
     });
     c.on('close', () => { const _ps3 = document.getElementById('peer-status'); if (_ps3) _ps3.innerText = 'Disconnected'; remoteInfo.id = null; updateRemoteHUD(); });
     c.on('error', (e) => { console.warn('conn error', e); });
@@ -680,7 +691,61 @@ function handlePeerData(data) {
     } else if (data.type === 'hello') {
         remoteInfo.id = data.id || remoteInfo.id;
         updateRemoteHUD();
+    } else if (data.type === 'load') {
+        // remote requests to load a URL
+        if (data.url) {
+            lastLoadFromPeer = true;
+            document.getElementById('url-input').value = data.url;
+            // apply video flag if provided
+            if (typeof data.isVideoMode === 'boolean') document.getElementById('force-video').checked = data.isVideoMode;
+            // start loading but do not auto-start playback; just prepare and send ready
+            handleUrlLoad();
+        }
+    } else if (data.type === 'ready') {
+        remoteReady = true;
+        const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Remote ready';
+    } else if (data.type === 'start') {
+        // schedule start at host time
+        const startAt = data.startAt; // epoch ms in host time
+        const offset = peerClockOffset || 0;
+        const localStart = startAt - offset;
+        if (typeof startAt === 'number') {
+            // call startGame with scheduled local epoch ms
+            startGame(localStart);
+        }
+    } else if (data.type === 'sync-ping') {
+        // reply with pong including receive/send timestamps
+        const t0 = data.t0 || 0;
+        const t1 = Date.now();
+        try { sendPeerMessage({ type: 'sync-pong', t0: t0, t1: t1, t2: Date.now() }); } catch (e) {}
+    } else if (data.type === 'sync-pong') {
+        // only the side that initiated ping will receive this
+        const t0 = data.t0 || 0;
+        const t1 = data.t1 || 0;
+        const t2 = data.t2 || 0;
+        const t3 = Date.now();
+        const rtt = (t3 - t0) - (t2 - t1);
+        const offset = ((t1 - t0) + (t2 - t3)) / 2;
+        pingSamples.push({ rtt, offset });
+        // compute running averages
+        const recent = pingSamples.slice(-6);
+        peerRtt = Math.round(recent.reduce((s, x) => s + x.rtt, 0) / recent.length);
+        peerClockOffset = Math.round(recent.reduce((s, x) => s + x.offset, 0) / recent.length);
+        const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = `Sync done (rtt:${peerRtt}ms, off:${peerClockOffset}ms)`;
     }
+}
+
+function startClockSync(iterations = 6) {
+    pingSamples = [];
+    let sent = 0;
+    function sendOnce() {
+        if (!conn || !conn.open) return;
+        const t0 = Date.now();
+        sendPeerMessage({ type: 'sync-ping', t0 });
+        sent++;
+        if (sent < iterations) setTimeout(sendOnce, 120);
+    }
+    sendOnce();
 }
 
 function updateRemoteHUD() {
@@ -1087,6 +1152,19 @@ touchZone.addEventListener('pointercancel', (e) => {
             c.on('error', (e) => { console.warn('conn error', e); if (peerStatusEl) peerStatusEl.innerText = 'Conn Error'; });
         });
     }
+
+    const peerStartBtn = document.getElementById('peer-start-btn');
+    if (peerStartBtn) {
+        peerStartBtn.addEventListener('click', () => {
+            if (!conn || !conn.open) return alert('Not connected');
+            // schedule start 3s from now (host local time)
+            const startAt = Date.now() + 3000;
+            // send start command (host epoch)
+            sendPeerMessage({ type: 'start', startAt });
+            // start locally as host
+            startGame(startAt);
+        });
+    }
 }
 
 // --- REQUEST SONG HANDLER ---
@@ -1417,7 +1495,14 @@ async function handleUrlLoad() {
         if (!response.ok) throw new Error("Network error");
         const arrayBuffer = await response.arrayBuffer();
         
+        // If connected and this load originated locally, tell peer to load too
+        if (conn && conn.open && !lastLoadFromPeer) {
+            try { sendPeerMessage({ type: 'load', url: url, isVideoMode: !!isVideoMode }); } catch (e) { console.warn(e); }
+        }
+
         await processAudio(arrayBuffer);
+        // if this was a peer-initiated load, clear flag after processing
+        if (lastLoadFromPeer) lastLoadFromPeer = false;
     } catch (e) {
         console.error(e);
         setLoading(false);
@@ -1473,7 +1558,15 @@ async function processAudio(arrayBuffer) {
         // Wait a frame to let UI update
         setTimeout(async () => {
             await analyzeAudio(decodedBuffer);
-            startGame();
+            localReady = true;
+            // notify peer we're ready if connected
+            if (conn && conn.open) {
+                sendPeerMessage({ type: 'ready' });
+                const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Loaded (ready)';
+                // do not auto-start when connected; wait for host 'start' message
+            } else {
+                startGame();
+            }
         }, 50);
     } catch (e) {
         setLoading(false);
@@ -1495,7 +1588,7 @@ function setLoading(active, text = "") {
     }
 }
 
-function startGame() {
+function startGame(scheduledLocalEpochMs) {
     setLoading(false);
     gameState = 'PLAYING';
     resetGameVars();
@@ -1528,7 +1621,16 @@ function startGame() {
         videoEl.muted = false; 
         videoEl.loop = false;
         videoEl.playbackRate = speedMultiplier;
-        videoEl.play().catch(e => console.log("Video play error:", e));
+        if (typeof scheduledLocalEpochMs === 'number') {
+            const delayMs = scheduledLocalEpochMs - Date.now();
+            if (delayMs <= 0) {
+                videoEl.play().catch(e => console.log("Video play error:", e));
+            } else {
+                setTimeout(() => videoEl.play().catch(e => console.log("Video play error:", e)), delayMs);
+            }
+        } else {
+            videoEl.play().catch(e => console.log("Video play error:", e));
+        }
         videoEl.onended = () => { if(gameState === 'PLAYING') endGame(true); };
     } else {
         // AUDIO MODE - VOID (Blank Black Background)
@@ -1539,8 +1641,16 @@ function startGame() {
         audioSource.buffer = currentBuffer;
         audioSource.playbackRate.value = speedMultiplier;
         audioSource.connect(audioCtx.destination);
-        audioSource.start(0);
-        startTime = audioCtx.currentTime;
+        if (typeof scheduledLocalEpochMs === 'number') {
+            const delayMs = scheduledLocalEpochMs - Date.now();
+            const delaySec = Math.max(delayMs / 1000, 0);
+            const startAt = audioCtx.currentTime + delaySec;
+            audioSource.start(startAt);
+            startTime = startAt;
+        } else {
+            audioSource.start(0);
+            startTime = audioCtx.currentTime;
+        }
         audioSource.onended = () => { if(gameState === 'PLAYING') endGame(true); };
     }
 }
