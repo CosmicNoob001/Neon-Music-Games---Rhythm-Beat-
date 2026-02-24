@@ -254,6 +254,9 @@
 <video id="bg-video" playsinline="" webkit-playsinline="" crossorigin="anonymous" loop="" muted=""></video>
 <div id="bg-overlay-layer" class="bg-overlay"></div>
 
+<!-- PeerJS CDN (needed for multiplayer P2P) -->
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
 <!-- Canvas Layer -->
 <canvas id="gameCanvas" width="509" height="895"></canvas>
 
@@ -272,6 +275,12 @@
                 <div id="active-mods-display" class="flex mt-1"></div>
             </div>
             
+            <div id="remote-hud" class="flex flex-col items-end mr-4 text-xs text-gray-400" style="text-align:right;">
+                <div class="text-[10px] text-gray-400">Remote</div>
+                <div id="remote-id" class="text-xs text-gray-300">—</div>
+                <div id="remote-stats" class="text-xs text-gray-400">Score: 0 • Combo: 0</div>
+            </div>
+
             <div class="flex gap-3 items-center">
                 <div class="flex flex-col items-end mr-2">
                     <div class="text-3xl font-bold text-glow leading-none" style="color:var(--accent-secondary)">
@@ -380,6 +389,20 @@
             </div>
             -->
             
+            <div class="w-full mb-4">
+                <label class="text-[10px] text-gray-400 uppercase tracking-widest">Multiplayer (P2P)</label>
+                <div class="flex gap-2 w-full mt-2">
+                    <button id="peer-host-btn" class="btn-secondary w-1/2">Host (Create Peer)</button>
+                    <button id="peer-copy-btn" class="btn-secondary w-1/2">Copy ID</button>
+                </div>
+                <div class="flex gap-2 w-full mt-2">
+                    <input id="peer-id-display" class="input-neon" placeholder="Your peer id" readonly>
+                    <input id="peer-connect-input" class="input-neon" placeholder="Enter peer id to connect">
+                    <button id="peer-connect-btn" class="btn-neon w-auto px-4">Connect</button>
+                </div>
+                <div id="peer-status" class="text-[9px] text-gray-400 mt-2">Status: offline</div>
+            </div>
+
             <div class="text-[9px] text-center text-gray-600 uppercase tracking-widest mt-auto">
                 Mobile Portrait • Touch Only
             </div>
@@ -614,6 +637,58 @@ const LANE_GLOWS = ['rgba(255,0,255,0.6)', 'rgba(0,255,255,0.6)', 'rgba(0,255,0,
 let particles = [];
 let popups = [];
 let laneEffects = [0, 0, 0, 0]; 
+
+// --- PeerJS P2P (simple) ---
+let peer = null;
+let conn = null;
+let remoteInfo = { id: null, score: 0, combo: 0 };
+
+function sendPeerMessage(obj) {
+    if (conn && conn.open) {
+        try { conn.send(obj); } catch (e) { console.warn('peer send err', e); }
+    }
+}
+
+function setupConnection(c) {
+    conn = c;
+    const _ps = document.getElementById('peer-status');
+    if (_ps) _ps.innerText = 'Connected: ' + c.peer;
+    remoteInfo.id = c.peer;
+    updateRemoteHUD();
+
+    c.on('data', (data) => { handlePeerData(data); });
+    c.on('open', () => {
+        const _ps2 = document.getElementById('peer-status');
+        if (_ps2) _ps2.innerText = 'Connected: ' + c.peer;
+        try { c.send({ type: 'hello', id: (peer && peer.id) || null }); } catch (e) {}
+    });
+    c.on('close', () => { const _ps3 = document.getElementById('peer-status'); if (_ps3) _ps3.innerText = 'Disconnected'; remoteInfo.id = null; updateRemoteHUD(); });
+    c.on('error', (e) => { console.warn('conn error', e); });
+}
+
+function handlePeerData(data) {
+    if (!data || !data.type) return;
+    if (data.type === 'hit') {
+        remoteInfo.score = data.score || remoteInfo.score;
+        remoteInfo.combo = data.combo || remoteInfo.combo;
+        remoteInfo.id = data.id || remoteInfo.id;
+        updateRemoteHUD();
+
+        // Visual feedback for remote hit
+        popups.push({ text: `R:${data.result}`, x: getLaneX(data.lane), y: (canvas.logicalHeight || (canvas.height / (window.devicePixelRatio || 1))) * 0.65, life: 0.9, color: '#FFD700', scale: 1.1 });
+        createParticles(data.lane, 6, '#FFD700');
+    } else if (data.type === 'hello') {
+        remoteInfo.id = data.id || remoteInfo.id;
+        updateRemoteHUD();
+    }
+}
+
+function updateRemoteHUD() {
+    const elId = document.getElementById('remote-id');
+    const elStats = document.getElementById('remote-stats');
+    if (elId) elId.innerText = remoteInfo.id || '—';
+    if (elStats) elStats.innerText = `Score: ${remoteInfo.score} • Combo: ${remoteInfo.combo}`;
+}
 
 // --- AUDIO SYSTEM ---
 const audioManager = {
@@ -968,6 +1043,50 @@ touchZone.addEventListener('pointercancel', (e) => {
     });
     document.getElementById('btn-exit-gameover').addEventListener('click', exitToMenu);
     document.getElementById('btn-send-request').addEventListener('click', handleSendRequest);
+
+    // --- Multiplayer (PeerJS) UI bindings ---
+    const peerHostBtn = document.getElementById('peer-host-btn');
+    const peerCopyBtn = document.getElementById('peer-copy-btn');
+    const peerIdDisplay = document.getElementById('peer-id-display');
+    const peerConnectInput = document.getElementById('peer-connect-input');
+    const peerConnectBtn = document.getElementById('peer-connect-btn');
+    const peerStatusEl = document.getElementById('peer-status');
+
+    if (peerHostBtn) {
+        peerHostBtn.addEventListener('click', () => {
+            if (peer) { try { peer.destroy(); } catch (e) {} peer = null; conn = null; }
+            peer = new Peer();
+            peer.on('open', (id) => {
+                if (peerIdDisplay) peerIdDisplay.value = id;
+                if (peerStatusEl) peerStatusEl.innerText = 'Host ID: ' + id;
+            });
+            peer.on('connection', (c) => { setupConnection(c); });
+            peer.on('error', (e) => { console.warn('Peer error', e); if (peerStatusEl) peerStatusEl.innerText = 'Error'; });
+        });
+    }
+
+    if (peerCopyBtn) {
+        peerCopyBtn.addEventListener('click', () => {
+            const idVal = (peerIdDisplay && peerIdDisplay.value) || (peer && peer.id);
+            if (idVal && navigator.clipboard) navigator.clipboard.writeText(idVal).catch(() => {});
+        });
+    }
+
+    if (peerConnectBtn) {
+        peerConnectBtn.addEventListener('click', () => {
+            const target = (peerConnectInput && peerConnectInput.value || '').trim();
+            if (!target) return alert('Enter peer id');
+            if (!peer) {
+                peer = new Peer();
+                peer.on('open', () => { if (peerStatusEl) peerStatusEl.innerText = 'Ready'; });
+                peer.on('connection', (c) => { setupConnection(c); });
+                peer.on('error', (e) => { console.warn(e); if (peerStatusEl) peerStatusEl.innerText = 'Error'; });
+            }
+            const c = peer.connect(target);
+            c.on('open', () => { setupConnection(c); });
+            c.on('error', (e) => { console.warn('conn error', e); if (peerStatusEl) peerStatusEl.innerText = 'Conn Error'; });
+        });
+    }
 }
 
 // --- REQUEST SONG HANDLER ---
@@ -1583,6 +1702,9 @@ function checkHit(lane) {
         }
         
         updateHUD();
+        if (conn && conn.open) {
+            sendPeerMessage({ type: 'hit', id: (peer && peer.id) || null, lane, result: text, combo: combo, score: score });
+        }
     }
 }
 
