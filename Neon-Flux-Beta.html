@@ -1914,73 +1914,74 @@ function setLoading(active, text = "") {
 }
 
 function startGame(scheduledLocalEpochMs) {
+    // Prevent duplicate starts
+    if (gameState === 'PLAYING' || gameState === 'STARTING') return;
     setLoading(false);
-    // If start scheduled, show countdown
-    if (typeof scheduledLocalEpochMs === 'number' && scheduledLocalEpochMs > Date.now()) {
-        showCountdown(scheduledLocalEpochMs);
-    }
-    gameState = 'PLAYING';
-    resetGameVars();
-    stats = { perfect: 0, good: 0, miss: 0 };
-    particles = [];
-    popups = [];
-    
-    // Calculate Speed Multiplier based on Mods
-    speedMultiplier = 1.0;
-    if (activeMods.DT) speedMultiplier = 1.2;
-    if (activeMods.HT) speedMultiplier = 0.85;
 
-    notes.forEach(n => {
-        n.hit = false;
-        n.missed = false;
-        n.processed = false;
-        n.holding = false;
-    });
-    
-    document.getElementById('hud').classList.remove('hidden');
-    updateHUD();
-    
-    // Setup Visuals based on Mode
-    if (isVideoMode) {
-        // VIDEO MODE
-        videoEl.style.opacity = 0.6; 
-        bgOverlay.style.background = SETTINGS.bgDim ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.3)';
+    // mark as starting to avoid duplicates while scheduling
+    gameState = 'STARTING';
+
+    function doStart() {
+        // If already playing (another call) skip
+        if (gameState === 'PLAYING') return;
+        gameState = 'PLAYING';
+        resetGameVars();
+        stats = { perfect: 0, good: 0, miss: 0 };
+        particles = [];
+        popups = [];
         
-        videoEl.currentTime = 0;
-        videoEl.muted = false; 
-        videoEl.loop = false;
-        videoEl.playbackRate = speedMultiplier;
-        if (typeof scheduledLocalEpochMs === 'number') {
-            const delayMs = scheduledLocalEpochMs - Date.now();
-            if (delayMs <= 0) {
-                videoEl.play().catch(e => console.log("Video play error:", e));
-            } else {
-                setTimeout(() => videoEl.play().catch(e => console.log("Video play error:", e)), delayMs);
-            }
-        } else {
+        // Calculate Speed Multiplier based on Mods
+        speedMultiplier = 1.0;
+        if (activeMods.DT) speedMultiplier = 1.2;
+        if (activeMods.HT) speedMultiplier = 0.85;
+
+        notes.forEach(n => {
+            n.hit = false;
+            n.missed = false;
+            n.processed = false;
+            n.holding = false;
+        });
+        
+        document.getElementById('hud').classList.remove('hidden');
+        updateHUD();
+        
+        // Setup Visuals based on Mode
+        if (isVideoMode) {
+            // VIDEO MODE
+            videoEl.style.opacity = 0.6; 
+            bgOverlay.style.background = SETTINGS.bgDim ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.3)';
+            
+            videoEl.currentTime = 0;
+            videoEl.muted = false; 
+            videoEl.loop = false;
+            videoEl.playbackRate = speedMultiplier;
             videoEl.play().catch(e => console.log("Video play error:", e));
-        }
-        videoEl.onended = () => { if(gameState === 'PLAYING') endGame(true); };
-    } else {
-        // AUDIO MODE - VOID (Blank Black Background)
-        videoEl.style.opacity = 0;
-        bgOverlay.style.background = 'transparent';
-        
-        audioSource = audioCtx.createBufferSource();
-        audioSource.buffer = currentBuffer;
-        audioSource.playbackRate.value = speedMultiplier;
-        audioSource.connect(audioCtx.destination);
-        if (typeof scheduledLocalEpochMs === 'number') {
-            const delayMs = scheduledLocalEpochMs - Date.now();
-            const delaySec = Math.max(delayMs / 1000, 0);
-            const startAt = audioCtx.currentTime + delaySec;
-            audioSource.start(startAt);
-            startTime = startAt;
+            videoEl.onended = () => { if(gameState === 'PLAYING') endGame(true); };
         } else {
+            // AUDIO MODE - VOID (Blank Black Background)
+            videoEl.style.opacity = 0;
+            bgOverlay.style.background = 'transparent';
+            
+            audioSource = audioCtx.createBufferSource();
+            audioSource.buffer = currentBuffer;
+            audioSource.playbackRate.value = speedMultiplier;
+            audioSource.connect(audioCtx.destination);
             audioSource.start(0);
             startTime = audioCtx.currentTime;
+            audioSource.onended = () => { if(gameState === 'PLAYING') endGame(true); };
         }
-        audioSource.onended = () => { if(gameState === 'PLAYING') endGame(true); };
+    }
+
+    // If start scheduled in future, show countdown and schedule doStart
+    if (typeof scheduledLocalEpochMs === 'number' && scheduledLocalEpochMs > Date.now()) {
+        showCountdown(scheduledLocalEpochMs);
+        const delayMs = Math.max(0, scheduledLocalEpochMs - Date.now());
+        setTimeout(() => {
+            doStart();
+        }, delayMs);
+    } else {
+        // immediate start
+        doStart();
     }
 }
 
