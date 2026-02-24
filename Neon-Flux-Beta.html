@@ -402,6 +402,12 @@
                     <button id="peer-connect-btn" class="btn-neon w-auto px-4">Connect</button>
                     <button id="peer-start-btn" class="btn-neon w-auto px-4">Start Together</button>
                 </div>
+                <div class="flex gap-2 w-full mt-2">
+                    <input type="file" id="file-share-input" accept="audio/*,video/*" class="hidden">
+                    <button id="btn-share-file" class="btn-secondary w-full border-green-900/30 text-green-400" style="background: rgba(0, 255, 136, 0.05);">
+                        📤 SHARE FILE TO PEER
+                    </button>
+                </div>
                 <div id="peer-status" class="text-[9px] text-gray-400 mt-2">Status: offline</div>
             </div>
 
@@ -769,6 +775,142 @@ function handlePeerData(data) {
         peerRtt = Math.round(recent.reduce((s, x) => s + x.rtt, 0) / recent.length);
         peerClockOffset = Math.round(recent.reduce((s, x) => s + x.offset, 0) / recent.length);
         const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = `Sync done (rtt:${peerRtt}ms, off:${peerClockOffset}ms)`;
+    } else if (data.type === 'file-header' || data.type === 'file-chunk' || data.type === 'file-complete') {
+        // Handle file transfer messages
+        receiveFileChunk(data);
+    }
+}
+
+// --- FILE TRANSFER VIA P2P (chunked) ---
+// Max payload per message ~240KB (safe margin under PeerJS 256KB default)
+const FILE_CHUNK_SIZE = 240 * 1024;
+let fileTransferInProgress = false;
+let fileTransferReceived = {}; // { fileId: { name, type, size, chunks: [], progress } }
+
+async function sendFileOverPeer(file) {
+    if (!conn || !conn.open) {
+        alert('Not connected to peer. Connect first.');
+        return;
+    }
+    if (fileTransferInProgress) {
+        alert('File transfer already in progress.');
+        return;
+    }
+
+    fileTransferInProgress = true;
+    const fileId = Date.now().toString();
+    const arrayBuffer = await file.arrayBuffer();
+    const totalChunks = Math.ceil(arrayBuffer.byteLength / FILE_CHUNK_SIZE);
+    
+    setLoading(true, `Sending ${file.name}... (0%)`);
+    
+    try {
+        // Send file header
+        sendPeerMessage({
+            type: 'file-header',
+            fileId: fileId,
+            name: file.name,
+            type: file.type,
+            size: arrayBuffer.byteLength,
+            totalChunks: totalChunks
+        });
+
+        // Send chunks
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * FILE_CHUNK_SIZE;
+            const end = Math.min(start + FILE_CHUNK_SIZE, arrayBuffer.byteLength);
+            const chunkData = new Uint8Array(arrayBuffer, start, end - start);
+            
+            sendPeerMessage({
+                type: 'file-chunk',
+                fileId: fileId,
+                chunkIndex: i,
+                totalChunks: totalChunks,
+                data: Array.from(chunkData) // convert Uint8Array to array for JSON serialization
+            });
+
+            // Update progress
+            const pct = Math.floor(((i + 1) / totalChunks) * 100);
+            setLoading(true, `Sending ${file.name}... (${pct}%)`);
+            
+            // Small delay between chunks to avoid overwhelming
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
+
+        sendPeerMessage({
+            type: 'file-complete',
+            fileId: fileId
+        });
+        
+        setLoading(false);
+        alert(`File "${file.name}" sent successfully!`);
+    } catch (e) {
+        console.error('File send error:', e);
+        setLoading(false);
+        alert('Error sending file: ' + e.message);
+    } finally {
+        fileTransferInProgress = false;
+    }
+}
+
+function receiveFileChunk(data) {
+    const { fileId, name, type, size, totalChunks, chunkIndex } = data;
+    
+    if (data.type === 'file-header') {
+        fileTransferReceived[fileId] = {
+            name: name,
+            type: type,
+            size: size,
+            chunks: new Array(totalChunks),
+            progress: 0
+        };
+        setLoading(true, `Receiving ${name}... (0%)`);
+    } else if (data.type === 'file-chunk') {
+        if (!fileTransferReceived[fileId]) {
+            console.warn('Received chunk for unknown file:', fileId);
+            return;
+        }
+        const chunkArray = new Uint8Array(data.data); // convert back from array
+        fileTransferReceived[fileId].chunks[chunkIndex] = chunkArray;
+        fileTransferReceived[fileId].progress = fileTransferReceived[fileId].chunks.filter(c => c).length;
+        
+        const pct = Math.floor((fileTransferReceived[fileId].progress / data.totalChunks) * 100);
+        setLoading(true, `Receiving ${name}... (${pct}%)`);
+    } else if (data.type === 'file-complete') {
+        const fileData = fileTransferReceived[fileId];
+        if (!fileData) {
+            console.warn('Received complete for unknown file:', fileId);
+            return;
+        }
+
+        // Reconstruct file from chunks
+        const totalSize = fileData.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        const reconstructed = new Uint8Array(totalSize);
+        let offset = 0;
+        for (const chunk of fileData.chunks) {
+            reconstructed.set(chunk, offset);
+            offset += chunk.byteLength;
+        }
+
+        // Create blob and load it as local file
+        const blob = new Blob([reconstructed], { type: fileData.type || 'audio/mpeg' });
+        
+        // Auto-populate the game with this file
+        lastLoadFromPeer = true;
+        document.getElementById('force-video').checked = (fileData.type || '').startsWith('video');
+        audioManager.init();
+        
+        setLoading(true, `Processing ${fileData.name}...`);
+        
+        blob.arrayBuffer().then(buf => {
+            processAudio(buf);
+        }).catch(e => {
+            console.error('Error processing received file:', e);
+            setLoading(false);
+            alert('Error processing received file.');
+        }).finally(() => {
+            delete fileTransferReceived[fileId];
+        });
     }
 }
 
@@ -1273,6 +1415,26 @@ touchZone.addEventListener('pointercancel', (e) => {
             startGame(startAt);
         });
     }
+
+    // Share file to peer button
+    const shareFileInput = document.getElementById('file-share-input');
+    const shareFileBtn = document.getElementById('btn-share-file');
+    if (shareFileBtn) {
+        shareFileBtn.addEventListener('click', () => {
+            if (!conn || !conn.open) return alert('Not connected to peer first');
+            if (shareFileInput) shareFileInput.click();
+        });
+    }
+    if (shareFileInput) {
+        shareFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            // Reset input
+            e.target.value = '';
+            // Send file to peer
+            await sendFileOverPeer(file);
+        });
+    }
 }
 
 // --- REQUEST SONG HANDLER ---
@@ -1639,6 +1801,11 @@ async function handleFileUpload(e) {
         }
         const arrayBuffer = await file.arrayBuffer();
         await processAudio(arrayBuffer);
+        
+        // If connected to peer, send the file to them
+        if (conn && conn.open && !lastLoadFromPeer) {
+            setTimeout(() => sendFileOverPeer(file), 500);
+        }
     } catch (err) {
         console.error(err);
         setLoading(false);
