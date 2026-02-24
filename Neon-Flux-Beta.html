@@ -496,6 +496,20 @@
         </div>
     </div>
 
+    <!-- Ready / Waiting overlay -->
+    <div id="ready-overlay" class="hidden absolute inset-0 flex-center z-[71] pointer-events-auto">
+        <div class="w-full max-w-xs p-6 glass-panel text-center">
+            <h2 class="text-2xl font-bold mb-2">Ready to Start</h2>
+            <div id="ready-local" class="text-lg font-bold text-accent-primary mb-1">You: Not Ready</div>
+            <div id="ready-remote" class="text-sm text-gray-400 mb-4">Other player: Not Ready</div>
+            <div class="flex gap-2 w-full">
+                <button id="ready-start-btn" class="btn-neon w-full" disabled>Start Together</button>
+            </div>
+            <div class="text-[10px] text-gray-400 mt-3">Wait for the other player to finish loading. Host can start the song when both are ready.</div>
+            <div class="text-[9px] text-gray-500 mt-2">Status: <span id="ready-status">Waiting</span></div>
+        </div>
+    </div>
+
     <!-- Pause Menu -->
     <div id="pause-menu" class="hidden absolute inset-0 flex-center glass-panel pointer-events-auto z-50 m-2 bg-black/95">
         <h2 class="text-4xl font-bold text-white mb-8 tracking-widest">PAUSED</h2>
@@ -652,6 +666,7 @@ let laneEffects = [0, 0, 0, 0];
 let peer = null;
 let conn = null;
 let remoteInfo = { id: null, score: 0, combo: 0 };
+let isHost = false;
 
 function sendPeerMessage(obj) {
     if (conn && conn.open) {
@@ -716,6 +731,11 @@ function handlePeerData(data) {
     } else if (data.type === 'ready') {
         remoteReady = true;
         const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Remote ready';
+        // If local is ready, show the ready overlay so host can start
+        if (localReady) {
+            showReadyOverlay();
+            updateReadyUI();
+        }
     } else if (data.type === 'start') {
         // schedule start at host time
         const startAt = data.startAt; // epoch ms in host time
@@ -1169,6 +1189,7 @@ touchZone.addEventListener('pointercancel', (e) => {
         peerHostBtn.addEventListener('click', () => {
             if (peer) { try { peer.destroy(); } catch (e) {} peer = null; conn = null; }
             peer = new Peer();
+            isHost = true;
             peer.on('open', (id) => {
                 if (peerIdDisplay) peerIdDisplay.value = id;
                 if (peerStatusEl) peerStatusEl.innerText = 'Host ID: ' + id;
@@ -1182,6 +1203,42 @@ touchZone.addEventListener('pointercancel', (e) => {
         peerCopyBtn.addEventListener('click', () => {
             const idVal = (peerIdDisplay && peerIdDisplay.value) || (peer && peer.id);
             if (idVal && navigator.clipboard) navigator.clipboard.writeText(idVal).catch(() => {});
+        });
+    }
+
+    // Helper to show/hide ready overlay and update UI
+    function showReadyOverlay() {
+        const el = document.getElementById('ready-overlay');
+        if (!el) return;
+        el.classList.remove('hidden');
+        updateReadyUI();
+    }
+    function hideReadyOverlay() {
+        const el = document.getElementById('ready-overlay');
+        if (!el) return;
+        el.classList.add('hidden');
+    }
+    function updateReadyUI() {
+        const l = document.getElementById('ready-local');
+        const r = document.getElementById('ready-remote');
+        const status = document.getElementById('ready-status');
+        const startBtn = document.getElementById('ready-start-btn');
+        if (l) l.innerText = `You: ${localReady ? 'Ready' : 'Not Ready'}`;
+        if (r) r.innerText = `Other player: ${remoteReady ? 'Ready' : 'Not Ready'}`;
+        if (status) status.innerText = remoteReady ? 'Remote ready' : 'Waiting for remote';
+        if (startBtn) startBtn.disabled = !(isHost && localReady && remoteReady && conn && conn.open);
+    }
+
+    // Ready overlay start button
+    const readyStartBtn = document.getElementById('ready-start-btn');
+    if (readyStartBtn) {
+        readyStartBtn.addEventListener('click', () => {
+            if (!conn || !conn.open) return alert('Not connected');
+            if (!isHost) return alert('Only host can start');
+            const startAt = Date.now() + 3000;
+            sendPeerMessage({ type: 'start', startAt });
+            startGame(startAt);
+            hideReadyOverlay();
         });
     }
 
@@ -1205,6 +1262,9 @@ touchZone.addEventListener('pointercancel', (e) => {
     if (peerStartBtn) {
         peerStartBtn.addEventListener('click', () => {
             if (!conn || !conn.open) return alert('Not connected');
+            if (!localReady) return alert('Load a track first (you are not ready)');
+            if (!remoteReady) return alert('Remote not ready yet');
+            if (!isHost) return alert('Only host can start');
             // schedule start 3s from now (host local time)
             const startAt = Date.now() + 3000;
             // send start command (host epoch)
@@ -1609,6 +1669,10 @@ async function processAudio(arrayBuffer) {
             } else {
                 startGame();
             }
+                    // show ready overlay when connected
+                    if (conn && conn.open) {
+                        showReadyOverlay();
+                    }
             // if a start was pending from peer, kick it off now
             if (pendingStartAt) {
                 startGame(pendingStartAt);
