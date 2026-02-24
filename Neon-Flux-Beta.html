@@ -1615,6 +1615,11 @@ async function processAudio(arrayBuffer) {
             } else {
                 startGame();
             }
+            // if a start was pending from peer, kick it off now
+            if (pendingStartAt) {
+                startGame(pendingStartAt);
+                pendingStartAt = null;
+            }
         }, 50);
     } catch (e) {
         setLoading(false);
