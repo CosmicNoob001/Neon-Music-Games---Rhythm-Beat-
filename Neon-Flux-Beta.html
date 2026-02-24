@@ -509,7 +509,8 @@
             <div id="ready-local" class="text-lg font-bold text-accent-primary mb-1">You: Not Ready</div>
             <div id="ready-remote" class="text-sm text-gray-400 mb-4">Other player: Not Ready</div>
             <div class="flex gap-2 w-full">
-                <button id="ready-start-btn" class="btn-neon w-full" disabled>Start Together</button>
+                        <button id="ready-toggle-btn" class="btn-secondary w-1/2">I'm Ready</button>
+                        <button id="ready-start-btn" class="btn-neon w-1/2" disabled>Start Together</button>
             </div>
             <div class="text-[10px] text-gray-400 mt-3">Wait for the other player to finish loading. Host can start the song when both are ready.</div>
             <div class="text-[9px] text-gray-500 mt-2">Status: <span id="ready-status">Waiting</span></div>
@@ -688,6 +689,7 @@ let localReady = false;
 let remoteReady = false;
 let lastLoadFromPeer = false;
 let pendingStartAt = null;
+let pendingAutoStart = null;
 
 function setupConnection(c) {
     conn = c;
@@ -707,6 +709,7 @@ function setupConnection(c) {
         setTimeout(() => startClockSync(6), 200);
     });
     c.on('close', () => { const _ps3 = document.getElementById('peer-status'); if (_ps3) _ps3.innerText = 'Disconnected'; remoteInfo.id = null; updateRemoteHUD(); });
+    c.on('close', () => { remoteReady = false; if (pendingAutoStart) { clearTimeout(pendingAutoStart); pendingAutoStart = null; } try { updateReadyUI(); } catch (e){} });
     c.on('error', (e) => { console.warn('conn error', e); });
 }
 
@@ -737,11 +740,16 @@ function handlePeerData(data) {
     } else if (data.type === 'ready') {
         remoteReady = true;
         const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Remote ready';
-        // If local is ready, show the ready overlay so host can start
-        if (localReady) {
-            showReadyOverlay();
-            updateReadyUI();
-        }
+        // show ready overlay so both see state
+        showReadyOverlay();
+        updateReadyUI();
+        tryAutoStartIfReady();
+    } else if (data.type === 'unready') {
+        remoteReady = false;
+        // cancel any scheduled auto-start
+        if (pendingAutoStart) { clearTimeout(pendingAutoStart); pendingAutoStart = null; }
+        const _ps2 = document.getElementById('peer-status'); if (_ps2) _ps2.innerText = 'Remote not ready';
+        updateReadyUI();
     } else if (data.type === 'start') {
         // schedule start at host time
         const startAt = data.startAt; // epoch ms in host time
@@ -969,6 +977,21 @@ function updateReadyUI() {
     if (r) r.innerText = `Other player: ${remoteReady ? 'Ready' : 'Not Ready'}`;
     if (status) status.innerText = remoteReady ? 'Remote ready' : 'Waiting for remote';
     if (startBtn) startBtn.disabled = !(isHost && localReady && remoteReady && conn && conn.open);
+}
+
+function tryAutoStartIfReady() {
+    if (isHost && conn && conn.open && localReady && remoteReady) {
+        // avoid scheduling multiple times
+        if (pendingAutoStart) return;
+        pendingAutoStart = setTimeout(() => {
+            const startAt = Date.now() + 3000;
+            try { sendPeerMessage({ type: 'start', startAt }); } catch (e) { }
+            startGame(startAt);
+            hideReadyOverlay();
+            pendingAutoStart = null;
+        }, 800); // small delay so both players see ready state briefly
+        const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Both ready — starting soon';
+    }
 }
 
 function updateRemoteHUD() {
@@ -1381,6 +1404,29 @@ touchZone.addEventListener('pointercancel', (e) => {
             sendPeerMessage({ type: 'start', startAt });
             startGame(startAt);
             hideReadyOverlay();
+        });
+    }
+
+    const readyToggleBtn = document.getElementById('ready-toggle-btn');
+    if (readyToggleBtn) {
+        readyToggleBtn.addEventListener('click', () => {
+            if (!conn || !conn.open) return alert('Not connected to peer');
+            // toggle local ready
+            localReady = !localReady;
+            if (localReady) {
+                try { sendPeerMessage({ type: 'ready' }); } catch (e) {}
+                readyToggleBtn.classList.remove('btn-secondary');
+                readyToggleBtn.classList.add('btn-neon');
+                readyToggleBtn.innerText = 'Ready ✓';
+            } else {
+                try { sendPeerMessage({ type: 'unready' }); } catch (e) {}
+                readyToggleBtn.classList.remove('btn-neon');
+                readyToggleBtn.classList.add('btn-secondary');
+                readyToggleBtn.innerText = "I'm Ready";
+                if (pendingAutoStart) { clearTimeout(pendingAutoStart); pendingAutoStart = null; }
+            }
+            updateReadyUI();
+            tryAutoStartIfReady();
         });
     }
 
@@ -1827,13 +1873,14 @@ async function processAudio(arrayBuffer) {
         // Wait a frame to let UI update
         setTimeout(async () => {
             await analyzeAudio(decodedBuffer);
-            localReady = true;
-            // notify peer we're ready if connected
+            // If multiplayer, require explicit ready press; otherwise start automatically
             if (conn && conn.open) {
-                sendPeerMessage({ type: 'ready' });
-                const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Loaded (ready)';
-                // do not auto-start when connected; wait for host 'start' message
+                localReady = false;
+                showReadyOverlay();
+                updateReadyUI();
+                const _ps = document.getElementById('peer-status'); if (_ps) _ps.innerText = 'Loaded (awaiting ready)';
             } else {
+                localReady = true;
                 startGame();
             }
                     // show ready overlay when connected
