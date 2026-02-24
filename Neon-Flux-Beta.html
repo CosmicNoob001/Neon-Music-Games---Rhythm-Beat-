@@ -806,6 +806,29 @@ function showCountdown(targetEpochMs) {
     requestAnimationFrame(tick);
 }
 
+// Ready overlay helpers (global so processAudio can call them)
+function showReadyOverlay() {
+    const el = document.getElementById('ready-overlay');
+    if (!el) return;
+    el.classList.remove('hidden');
+    updateReadyUI();
+}
+function hideReadyOverlay() {
+    const el = document.getElementById('ready-overlay');
+    if (!el) return;
+    el.classList.add('hidden');
+}
+function updateReadyUI() {
+    const l = document.getElementById('ready-local');
+    const r = document.getElementById('ready-remote');
+    const status = document.getElementById('ready-status');
+    const startBtn = document.getElementById('ready-start-btn');
+    if (l) l.innerText = `You: ${localReady ? 'Ready' : 'Not Ready'}`;
+    if (r) r.innerText = `Other player: ${remoteReady ? 'Ready' : 'Not Ready'}`;
+    if (status) status.innerText = remoteReady ? 'Remote ready' : 'Waiting for remote';
+    if (startBtn) startBtn.disabled = !(isHost && localReady && remoteReady && conn && conn.open);
+}
+
 function updateRemoteHUD() {
     const elId = document.getElementById('remote-id');
     const elStats = document.getElementById('remote-stats');
@@ -1204,29 +1227,6 @@ touchZone.addEventListener('pointercancel', (e) => {
             const idVal = (peerIdDisplay && peerIdDisplay.value) || (peer && peer.id);
             if (idVal && navigator.clipboard) navigator.clipboard.writeText(idVal).catch(() => {});
         });
-    }
-
-    // Helper to show/hide ready overlay and update UI
-    function showReadyOverlay() {
-        const el = document.getElementById('ready-overlay');
-        if (!el) return;
-        el.classList.remove('hidden');
-        updateReadyUI();
-    }
-    function hideReadyOverlay() {
-        const el = document.getElementById('ready-overlay');
-        if (!el) return;
-        el.classList.add('hidden');
-    }
-    function updateReadyUI() {
-        const l = document.getElementById('ready-local');
-        const r = document.getElementById('ready-remote');
-        const status = document.getElementById('ready-status');
-        const startBtn = document.getElementById('ready-start-btn');
-        if (l) l.innerText = `You: ${localReady ? 'Ready' : 'Not Ready'}`;
-        if (r) r.innerText = `Other player: ${remoteReady ? 'Ready' : 'Not Ready'}`;
-        if (status) status.innerText = remoteReady ? 'Remote ready' : 'Waiting for remote';
-        if (startBtn) startBtn.disabled = !(isHost && localReady && remoteReady && conn && conn.open);
     }
 
     // Ready overlay start button
