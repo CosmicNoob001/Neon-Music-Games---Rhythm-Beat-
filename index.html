@@ -321,6 +321,19 @@
                 ▶ PLAY NOW
             </button>
         </div>
+        <div class="game-card">
+            <div class="game-preview">
+                <div class="preview-icon">🎹</div>
+            </div>
+            <h2 class="game-title">Neon-Flux (Beta)</h2>
+            <p class="game-description">
+                FOR BETA TEST The ultimate rhythm game! Press buttons to the beat, rack up combos, and break your own records. 
+                Features stunning neon effects and an electrifying soundtrack that'll keep you hooked!
+            </p>
+            <button class="play-button" onclick="loadGame2()">
+                ▶ PLAY NOW
+            </button>
+        </div>
 
         <!-- วิธีเพิ่มเกมใหม่ / How to add a new game:
         
@@ -397,6 +410,26 @@
         // Load Game Function - ฟังก์ชันโหลดเกมจาก GitHub / Function to load game from GitHub
         function loadGame() {
             const gameUrl = "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux.html";
+            
+            // ตรวจสอบว่า URL นั้นเข้าถึงได้
+            fetch(gameUrl, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        // ถ้า URL เข้าถึงได้ ให้เปลี่ยนหน้า
+                        window.location.href = gameUrl;
+                    } else {
+                        // ถ้า URL ไม่เข้าถึงได้
+                        alert('❌ ไม่สามารถเข้าถึงเกมได้\nURL: ' + gameUrl + '\n\nกรุณาตรวจสอบว่าไฟล์ Neon-Flux.html มีอยู่จริงในอยู่ GitHub Pages');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking game file:', error);
+                    // ถ้าเกิดข้อผิดพลาด ให้เปลี่ยนหน้าไปยัง URL นั้นต่อไป
+                    window.location.href = gameUrl;
+                });
+        }
+        function loadGame2() {
+            const gameUrl = "https://cosmicnoob001.github.io/Neon-Music-Games---Rhythm-Beat-/Neon-Flux-Beta.html";
             
             // ตรวจสอบว่า URL นั้นเข้าถึงได้
             fetch(gameUrl, { method: 'HEAD' })
