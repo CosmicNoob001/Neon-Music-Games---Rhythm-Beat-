@@ -409,49 +409,68 @@
         <div class="w-full max-w-xs p-6 glass-panel">
             <h2 class="text-2xl font-bold text-white mb-6 tracking-widest text-center">SETTINGS</h2>
             
-            <div class="flex flex-col gap-2 mb-6 w-full">
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">SFX (Sound Effects)</span>
-                    <input type="checkbox" id="set-sfx" class="checkbox-input" checked="">
-                </label>
-                
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">Visual FX (Particles)</span>
-                    <input type="checkbox" id="set-fx" class="checkbox-input" checked="">
-                </label>
-                
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">Arrow Background</span>
-                    <input type="checkbox" id="set-lane-bg" class="checkbox-input" checked="">
-                </label>
-                
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">Dark Background</span>
-                    <input type="checkbox" id="set-bg-dim" class="checkbox-input" checked="">
-                </label>
+            <!-- settings pages container -->
+            <div class="w-full">
+                <!-- PAGE 1: general toggles -->
+                <div id="settings-page1" class="flex flex-col gap-2 mb-6 w-full">
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">SFX (Sound Effects)</span>
+                        <input type="checkbox" id="set-sfx" class="checkbox-input" checked="">
+                    </label>
+                    
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Visual FX (Particles)</span>
+                        <input type="checkbox" id="set-fx" class="checkbox-input" checked="">
+                    </label>
+                    
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Arrow Background</span>
+                        <input type="checkbox" id="set-lane-bg" class="checkbox-input" checked="">
+                    </label>
+                    
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Dark Background</span>
+                        <input type="checkbox" id="set-bg-dim" class="checkbox-input" checked="">
+                    </label>
 
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">Force Audio-only for Videos</span>
-                    <input type="checkbox" id="set-force-audio" class="checkbox-input">
-                </label>
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Force Audio-only for Videos</span>
+                        <input type="checkbox" id="set-force-audio" class="checkbox-input">
+                    </label>
 
-                <!-- NEW: Horizontal Fullscreen (Mania) toggle -->
-                <label class="checkbox-wrapper">
-                    <span class="checkbox-label">Horizontal Fullscreen (Mania)</span>
-                    <input type="checkbox" id="set-mania" class="checkbox-input">
-                </label>
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Use HTML5 &lt;audio&gt; Element</span>
+                        <input type="checkbox" id="set-audio-tag" class="checkbox-input">
+                    </label>
 
-                <!-- NEW: Retry key binding -->
-                <label class="checkbox-wrapper" style="align-items:center;">
-                    <span class="checkbox-label">Retry Key</span>
-                    <button id="btn-set-retry-key" class="btn-secondary" style="width:110px;">R</button>
-                </label>
+                    <!-- NEW: Horizontal Fullscreen (Mania) toggle -->
+                    <label class="checkbox-wrapper">
+                        <span class="checkbox-label">Horizontal Fullscreen (Mania)</span>
+                        <input type="checkbox" id="set-mania" class="checkbox-input">
+                    </label>
+                </div>
 
-                <button class="btn-keybind" data-lane="0">L1 - D<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
-<button class="btn-keybind" data-lane="1">L2 - F<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
-<button class="btn-keybind" data-lane="2">L3 - J<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
-<button class="btn-keybind" data-lane="3">L4 - K<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+                <!-- PAGE 2: controls & keybinds -->
+                <div id="settings-page2" class="flex flex-col gap-2 mb-6 w-full hidden">
+                    <!-- Retry key binding -->
+                    <label class="checkbox-wrapper" style="align-items:center;">
+                        <span class="checkbox-label">Retry Key</span>
+                        <button id="btn-set-retry-key" class="btn-secondary" style="width:110px;">R</button>
+                    </label>
+
+                    <button class="btn-keybind" data-lane="0">L1 - D<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+                    <button class="btn-keybind" data-lane="1">L2 - F<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+                    <button class="btn-keybind" data-lane="2">L3 - J<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+                    <button class="btn-keybind" data-lane="3">L4 - K<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+                </div>
+
+                <!-- navigation row -->
+                <div class="flex justify-between mb-4">
+                    <button id="btn-settings-back" class="btn-secondary hidden">BACK</button>
+                    <button id="btn-settings-next" class="btn-secondary">NEXT</button>
+                </div>
             </div>
+
             <button id="btn-close-settings" class="btn-neon">CLOSE</button>
         </div>
     </div>
@@ -570,6 +589,12 @@ let isVideoMode = false;
 let startTime = 0;
 let speedMultiplier = 1.0;
 
+// raw data for optional <audio> element playback
+let rawAudioData = null;
+let audioMimeType = '';
+let audioEl = null; // <audio> tag instance (created on demand)
+
+
 // Gameplay Stats
 let score = 0;
 let combo = 0;
@@ -598,7 +623,8 @@ let SETTINGS = {
     bgDim: true,   // "Background Transparency" (Dark vs Light)
     mania: false,  // Horizontal centered fullscreen (osu!mania style)
     retryKey: 'KeyR', // default retry shortcut (can be changed by user)
-    forceAudioForVideos: false // when true, treat video tracks as audio-only
+    forceAudioForVideos: false, // when true, treat video tracks as audio-only
+    useAudioTag: false // if true, playback uses a hidden <audio> element instead of Web Audio API
 };
 
 // Chart Data
@@ -724,9 +750,16 @@ function initUI() {
     const chkFx = document.getElementById('set-fx');
     const chkLaneBg = document.getElementById('set-lane-bg');
     const chkBgDim = document.getElementById('set-bg-dim');
-    const chkMania = document.getElementById('set-mania'); // NEW
     const chkForceAudio = document.getElementById('set-force-audio'); // NEW
+    const chkAudioTag = document.getElementById('set-audio-tag'); // NEW setting
+    const chkMania = document.getElementById('set-mania'); // NEW
     const btnSetRetryKey = document.getElementById('btn-set-retry-key');
+
+    // page navigation
+    const page1 = document.getElementById('settings-page1');
+    const page2 = document.getElementById('settings-page2');
+    const btnBack = document.getElementById('btn-settings-back');
+    const btnNext = document.getElementById('btn-settings-next');
 
     function displayKeyLabel(code) {
         if (!code) return '—';
@@ -739,9 +772,16 @@ function initUI() {
     // reflect on open settings
     btnOpenSettings.addEventListener('click', () => {
         settingsOverlay.classList.remove('hidden');
+        // start on first page
+        page1.classList.remove('hidden');
+        page2.classList.add('hidden');
+        btnBack.classList.add('hidden');
+        btnNext.classList.remove('hidden');
+
         // reflect current setting
         chkMania.checked = SETTINGS.mania;
         chkForceAudio.checked = !!SETTINGS.forceAudioForVideos;
+        chkAudioTag.checked = !!SETTINGS.useAudioTag;
         btnSetRetryKey.innerText = displayKeyLabel(SETTINGS.retryKey);
     });
 
@@ -806,6 +846,25 @@ function initUI() {
     // Force audio-only for video tracks
     chkForceAudio.addEventListener('change', (e) => {
         SETTINGS.forceAudioForVideos = e.target.checked;
+    });
+
+    // Toggle use of <audio> element for playback
+    chkAudioTag.addEventListener('change', (e) => {
+        SETTINGS.useAudioTag = e.target.checked;
+    });
+
+    // page buttons
+    btnNext.addEventListener('click', () => {
+        page1.classList.add('hidden');
+        page2.classList.remove('hidden');
+        btnBack.classList.remove('hidden');
+        btnNext.classList.add('hidden');
+    });
+    btnBack.addEventListener('click', () => {
+        page1.classList.remove('hidden');
+        page2.classList.add('hidden');
+        btnBack.classList.add('hidden');
+        btnNext.classList.remove('hidden');
     });
 
     // NEW: mania toggle listener
@@ -1224,6 +1283,14 @@ function stopPlayback() {
         try { audioSource.stop(); } catch(e){}
         audioSource = null;
     }
+    if (audioEl) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        if (audioEl.src && audioEl.src.startsWith('blob:')) {
+            URL.revokeObjectURL(audioEl.src);
+        }
+        audioEl.src = '';
+    }
     if (videoEl) {
         videoEl.pause();
     }
@@ -1254,13 +1321,23 @@ function togglePause() {
     const pauseMenu = document.getElementById('pause-menu');
     
     if (isPaused) {
-        if (isVideoMode) videoEl.pause();
-        else if (audioCtx) audioCtx.suspend();
+        if (isVideoMode) {
+            videoEl.pause();
+        } else if (SETTINGS.useAudioTag && audioEl) {
+            audioEl.pause();
+        } else if (audioCtx) {
+            audioCtx.suspend();
+        }
         pauseMenu.classList.remove('hidden');
     } else {
         pauseMenu.classList.add('hidden');
-        if (isVideoMode) videoEl.play();
-        else audioCtx.resume();
+        if (isVideoMode) {
+            videoEl.play();
+        } else if (SETTINGS.useAudioTag && audioEl) {
+            audioEl.play().catch(e => console.log("Audio play error:", e));
+        } else {
+            audioCtx.resume();
+        }
     }
 }
 
@@ -1297,7 +1374,10 @@ async function handleUrlLoad() {
         const response = await fetch(url);
         if (!response.ok) throw new Error("Network error");
         const arrayBuffer = await response.arrayBuffer();
-        
+        // keep a copy of raw data and mime type for <audio> playback
+        rawAudioData = arrayBuffer;
+        audioMimeType = response.headers.get('content-type') || '';
+
         await processAudio(arrayBuffer);
     } catch (e) {
         console.error(e);
@@ -1332,6 +1412,9 @@ async function handleFileUpload(e) {
             videoEl.load();
         }
         const arrayBuffer = await file.arrayBuffer();
+        // store raw data/mime for audio-element path
+        rawAudioData = arrayBuffer;
+        audioMimeType = file.type || '';
         await processAudio(arrayBuffer);
     } catch (err) {
         console.error(err);
@@ -1415,14 +1498,35 @@ function startGame() {
         // AUDIO MODE - VOID (Blank Black Background)
         videoEl.style.opacity = 0;
         bgOverlay.style.background = 'transparent';
-        
-        audioSource = audioCtx.createBufferSource();
-        audioSource.buffer = currentBuffer;
-        audioSource.playbackRate.value = speedMultiplier;
-        audioSource.connect(audioCtx.destination);
-        audioSource.start(0);
-        startTime = audioCtx.currentTime;
-        audioSource.onended = () => { if(gameState === 'PLAYING') endGame(true); };
+
+        if (SETTINGS.useAudioTag) {
+            // playback using hidden <audio> element
+            if (!audioEl) {
+                audioEl = document.createElement('audio');
+                audioEl.id = 'audio-player';
+                audioEl.style.display = 'none';
+                document.body.appendChild(audioEl);
+            }
+            // revoke old objectURL if any
+            if (audioEl.src && audioEl.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audioEl.src);
+            }
+            if (rawAudioData) {
+                const blob = new Blob([rawAudioData], { type: audioMimeType || 'audio/mpeg' });
+                audioEl.src = URL.createObjectURL(blob);
+            }
+            audioEl.playbackRate = speedMultiplier;
+            audioEl.onended = () => { if(gameState === 'PLAYING') endGame(true); };
+            audioEl.play().catch(e => console.log("Audio playback error:", e));
+        } else {
+            audioSource = audioCtx.createBufferSource();
+            audioSource.buffer = currentBuffer;
+            audioSource.playbackRate.value = speedMultiplier;
+            audioSource.connect(audioCtx.destination);
+            audioSource.start(0);
+            startTime = audioCtx.currentTime;
+            audioSource.onended = () => { if(gameState === 'PLAYING') endGame(true); };
+        }
     }
 }
 
@@ -1450,6 +1554,10 @@ function getGameTime() {
     if (isVideoMode) {
         return videoEl.currentTime; 
     } else {
+        if (SETTINGS.useAudioTag && audioEl) {
+            // HTML5 audio element keeps its own currentTime and playbackRate
+            return audioEl.currentTime;
+        }
         // Calculate track position based on elapsed time * playback rate
         return (audioCtx.currentTime - startTime) * speedMultiplier;
     }
