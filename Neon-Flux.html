@@ -467,6 +467,9 @@
                     <button class="btn-keybind" data-lane="1">L2 - F<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
                     <button class="btn-keybind" data-lane="2">L3 - J<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
                     <button class="btn-keybind" data-lane="3">L4 - K<div class="text-[9px] mt-1 font-normal opacity-70">Click to change</div></button>
+
+                    <!-- Fullscreen control -->
+                    <button id="btn-fullscreen" class="btn-secondary">FULLSCREEN</button>
                 </div>
 
                 <!-- navigation row -->
@@ -803,6 +806,7 @@ function initUI() {
     const chkAudioTag = document.getElementById('set-audio-tag'); // NEW setting
     const chkScreenRecord = document.getElementById('set-screen-record'); // screen recording
     const chkMania = document.getElementById('set-mania'); // NEW
+    const btnFullscreen = document.getElementById('btn-fullscreen');
     const btnSetRetryKey = document.getElementById('btn-set-retry-key');
 
     // page navigation
@@ -939,6 +943,30 @@ function initUI() {
             resizeCanvas();
         } else {
             // not fullscreen yet; still apply resize so preview works
+            resizeCanvas();
+        }
+    });
+
+    // fullscreen button handler
+    btnFullscreen.addEventListener('click', () => {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen().catch(()=>{});
+        }
+    });
+
+    // update fullscreen button label when state changes
+    document.addEventListener('fullscreenchange', () => {
+        if (btnFullscreen) {
+            btnFullscreen.textContent = document.fullscreenElement ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+        }
+        // if leaving fullscreen, remove mania class to keep layout consistent
+        if (!document.fullscreenElement) {
+            document.body.classList.remove('mania');
+            resizeCanvas();
+        } else {
+            if (SETTINGS.mania) document.body.classList.add('mania');
             resizeCanvas();
         }
     });
